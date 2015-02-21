@@ -4,10 +4,10 @@
 #define DIM 512
 #define REPEAT 3
 
-unsigned long z_order(int x, int y, int z, int xlen, int ylen, int zlen) //x, y, z are 12 bit numbers
+unsigned long z_order(int x, int y, int z) //x, y, z are 12 bit numbers
 {
 	unsigned long output = 0;
-	for (int offset = 0; offset < 12; offset++)
+	for (int offset = 0; offset < 32; offset++)
 	{
 		output |= (x & (1 << offset)) << (3 * offset);
 		output |= (y & (1 << offset)) << (3 * offset + 1);
@@ -16,15 +16,9 @@ unsigned long z_order(int x, int y, int z, int xlen, int ylen, int zlen) //x, y,
 	return output;
 }
 
-unsigned long standard_order(int x, int y, int z, int xlen, int ylen, int zlen)
+unsigned long standard_order(int x, int y, int z)
 {
-	unsigned long output = 0;
-	output += x;
-	output *= ylen;
-	output += y;
-	output *= zlen;
-	output += z;
-	return output;
+	return ((unsigned long) x) * DIM * DIM + ((unsigned long) y) * DIM + z;
 }
 
 int kernel(int* region) // calculates 27 pt average stencil
@@ -41,9 +35,9 @@ int main(int argc, char** argv)
 {
 	printf("allocating\n");
 	long size = DIM*DIM*DIM;
-	int stdmatrix[size];
+	int stdmatrix[DIM][DIM][DIM];
 	int zmatrix[size];
-	int stdoutmatrix[size];
+	int stdoutmatrix[DIM][DIM][DIM];
 	int zoutmatrix[size];
 	int neighborhood[27];
 	long min_loc;
@@ -58,8 +52,8 @@ int main(int argc, char** argv)
 		{
 			for (int k = 0; k < DIM; k++)
 			{
-				stdmatrix[standard_order(i, j, k, 3, 3, 3)] = i + j + k;
-				zmatrix[z_order(i, j, k, 3, 3, 3)] = i + j + k;
+				stdmatrix[i][j][k] = i + j + k;
+				zmatrix[z_order(i, j, k)] = i + j + k;
 			}
 		}
 	}
@@ -82,7 +76,7 @@ int main(int argc, char** argv)
 						{
 							for (int dz = -1; dz <= 1; dz++)
 							{
-								location = standard_order(i+dx, j+dy, k+dz, 3, 3, 3);
+								location = standard_order(i+dx, j+dy, k+dz);
 								if (location < min_loc){
 									min_loc = location;
 								}
@@ -90,11 +84,11 @@ int main(int argc, char** argv)
 								{
 									max_loc = location;
 								}
-								neighborhood[9*(dx+1)+3*(dy+1)+dz+1] = stdmatrix[location];
+								neighborhood[9*(dx+1)+3*(dy+1)+dz+1] = stdmatrix[i][j][k];
 							}
 						}
 					}
-					stdoutmatrix[standard_order(i, j, k, 3, 3, 3)] = kernel(neighborhood);
+					stdoutmatrix[i][j][k] = kernel(neighborhood);
 					std_total_distance += (int) (max_loc - min_loc);
 				}
 			}
@@ -116,7 +110,7 @@ int main(int argc, char** argv)
 						{
 							for (int dz = -1; dz <= 1; dz++)
 							{
-								location = z_order(i+dx, j+dy, k+dz, 3, 3, 3);
+								location = z_order(i+dx, j+dy, k+dz);
 									if (location < min_loc){
 										min_loc = location;
 									}
@@ -128,7 +122,7 @@ int main(int argc, char** argv)
 							}
 						}
 					}
-					zoutmatrix[standard_order(i, j, k, 3, 3, 3)] = kernel(neighborhood);
+					zoutmatrix[standard_order(i, j, k)] = kernel(neighborhood);
 					z_total_distance += (int)(max_loc - min_loc);
 				}
 			}
