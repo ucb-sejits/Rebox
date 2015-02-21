@@ -1,18 +1,48 @@
+/*
+ * zorder.c
+ *
+ *  Created on: Feb 21, 2015
+ *      Author: nzhang-dev
+ */
 #include <stdio.h>
 #include <time.h>
+#include <stdlib.h>
 
 #ifndef DIM
-#define DIM 512
+#define DIM 64
 #endif
+
 #ifndef DIV
 #define DIV 2
 #endif
 
-#define REPEAT 3
+#define NEIGHBORHOOD_SIZE 63
 
+#define PAD 3
 
-//http://www.forceflow.be/2013/10/07/morton-encodingdecoding-through-bit-interleaving-implementations/
-static const unsigned int morton256_x[256] =
+#define standard_order(x, y, z) (((unsigned long) x) * DIM * DIM + ((unsigned long) y) * DIM + z)
+
+#ifndef ORDERING
+#ifndef LT
+#define ORDERING "ZMB"
+// method to seperate bits from a given integer 3 positions apart
+inline uint64_t splitBy3(unsigned int a){
+    uint64_t x = a & 0x1fffff; // we only look at the first 21 bits
+    x = (x | x << 32) & 0x1f00000000ffff;  // shift left 32 bits, OR with self, and 00011111000000000000000000000000000000001111111111111111
+    x = (x | x << 16) & 0x1f0000ff0000ff;  // shift left 32 bits, OR with self, and 00011111000000000000000011111111000000000000000011111111
+    x = (x | x << 8) & 0x100f00f00f00f00f; // shift left 32 bits, OR with self, and 0001000000001111000000001111000000001111000000001111000000000000
+    x = (x | x << 4) & 0x10c30c30c30c30c3; // shift left 32 bits, OR with self, and 0001000011000011000011000011000011000011000011000011000100000000
+    x = (x | x << 2) & 0x1249249249249249;
+    return x;
+}
+
+inline uint64_t ordering(unsigned int x, unsigned int y, unsigned int z){
+    uint64_t answer = splitBy3(x) | splitBy3(y) << 1 | splitBy3(z) << 2;
+    return answer;
+}
+#else
+#define ORDERING "ZLT"
+static const uint32_t morton256_x[256] =
 {
     0x00000000,
     0x00000001, 0x00000008, 0x00000009, 0x00000040, 0x00000041, 0x00000048, 0x00000049, 0x00000200,
@@ -50,7 +80,7 @@ static const unsigned int morton256_x[256] =
 };
 
 // pre-shifted table for Y coordinates (1 bit to the left)
-static const unsigned int morton256_y[256] = {
+static const uint32_t morton256_y[256] = {
     0x00000000,
     0x00000002, 0x00000010, 0x00000012, 0x00000080, 0x00000082, 0x00000090, 0x00000092, 0x00000400,
     0x00000402, 0x00000410, 0x00000412, 0x00000480, 0x00000482, 0x00000490, 0x00000492, 0x00002000,
@@ -87,7 +117,7 @@ static const unsigned int morton256_y[256] = {
 };
 
 // Pre-shifted table for z (2 bits to the left)
-static const unsigned int morton256_z[256] = {
+static const uint32_t morton256_z[256] = {
     0x00000000,
     0x00000004, 0x00000020, 0x00000024, 0x00000100, 0x00000104, 0x00000120, 0x00000124, 0x00000800,
     0x00000804, 0x00000820, 0x00000824, 0x00000900, 0x00000904, 0x00000920, 0x00000924, 0x00004000,
@@ -123,8 +153,8 @@ static const unsigned int morton256_z[256] = {
     0x00924804, 0x00924820, 0x00924824, 0x00924900, 0x00924904, 0x00924920, 0x00924924
 };
 
-unsigned long mortonEncode_LUT(unsigned int x, unsigned int y, unsigned int z){
-    unsigned long answer = 0;
+inline uint64_t ordering(unsigned int x, unsigned int y, unsigned int z){
+    uint64_t answer = 0;
     answer =    morton256_z[(z >> 16) & 0xFF ] | // we start by shifting the third byte, since we only look at the first 21 bits
                 morton256_y[(y >> 16) & 0xFF ] |
                 morton256_x[(x >> 16) & 0xFF ];
@@ -137,36 +167,37 @@ unsigned long mortonEncode_LUT(unsigned int x, unsigned int y, unsigned int z){
                 morton256_x[(x) & 0xFF ];
     return answer;
 }
-
-unsigned long standard_order(int x, int y, int z)
-{
-	return ((unsigned long) x) * DIM * DIM + ((unsigned long) y) * DIM + z;
+#endif
+#else
+#undef ORDERING
+#define ORDERING "STD"
+unsigned long ordering(unsigned int x, unsigned int y, unsigned int z){
+	return standard_order(x, y, z);
 }
+
+#endif
 
 int kernel(int* region) // calculates 27 pt average stencil
 {
 	int total = 0;
-	for (int i = 0; i < 9; i++)
+	for (int i = 0; i < NEIGHBORHOOD_SIZE; i++)
 	{
 		total += region[i];
 	}
-	return total/9;
+	return total/NEIGHBORHOOD_SIZE;
 }
 
 int main(int argc, char** argv)
 {
-	printf("allocating\n");
+	printf("Allocating\n");
 	long size = DIM*DIM*DIM;
-	int stdmatrix[DIM][DIM][DIM];
-	int zmatrix[size];
-	int stdoutmatrix[DIM][DIM][DIM];
-	int zoutmatrix[size];
-	int neighborhood[27];
-	long min_loc;
-	long max_loc;
-	long location;
-	int std_total_distance = 0;
-	int z_total_distance = 0;
+	int* matrix = (int*) malloc(size * sizeof(int));
+	int* outmatrix = (int*) malloc(size * sizeof(int));
+	int neighborhood[NEIGHBORHOOD_SIZE];
+	long location = 0;
+	int neighborhood_indices[NEIGHBORHOOD_SIZE][3] = {
+			{-3, 0, 0}, {-2, -1, 0}, {-2, 0, -1}, {-2, 0, 0}, {-2, 0, 1}, {-2, 1, 0}, {-1, -2, 0}, {-1, -1, -1}, {-1, -1, 0}, {-1, -1, 1}, {-1, 0, -2}, {-1, 0, -1}, {-1, 0, 0}, {-1, 0, 1}, {-1, 0, 2}, {-1, 1, -1}, {-1, 1, 0}, {-1, 1, 1}, {-1, 2, 0}, {0, -3, 0}, {0, -2, -1}, {0, -2, 0}, {0, -2, 1}, {0, -1, -2}, {0, -1, -1}, {0, -1, 0}, {0, -1, 1}, {0, -1, 2}, {0, 0, -3}, {0, 0, -2}, {0, 0, -1}, {0, 0, 0}, {0, 0, 1}, {0, 0, 2}, {0, 0, 3}, {0, 1, -2}, {0, 1, -1}, {0, 1, 0}, {0, 1, 1}, {0, 1, 2}, {0, 2, -1}, {0, 2, 0}, {0, 2, 1}, {0, 3, 0}, {1, -2, 0}, {1, -1, -1}, {1, -1, 0}, {1, -1, 1}, {1, 0, -2}, {1, 0, -1}, {1, 0, 0}, {1, 0, 1}, {1, 0, 2}, {1, 1, -1}, {1, 1, 0}, {1, 1, 1}, {1, 2, 0}, {2, -1, 0}, {2, 0, -1}, {2, 0, 0}, {2, 0, 1}, {2, 1, 0}, {3, 0, 0}
+		};
 	printf("Allocated\n");
 	for (int i = 0; i < DIM; i++)
 	{
@@ -174,85 +205,38 @@ int main(int argc, char** argv)
 		{
 			for (int k = 0; k < DIM; k++)
 			{
-				stdmatrix[i][j][k] = (i + j + k)/DIV;
-				zmatrix[mortonEncode_LUT(i, j, k)] = (i + j + k)/DIV;
+				matrix[ordering(i, j, k)] = (i + j + k)/DIV;
 			}
 		}
 	}
-	for (int count = 0; count < REPEAT; count++)
+	float midTime = (float)clock()/CLOCKS_PER_SEC;
+	for (int i = PAD; i < DIM - PAD; i++)
 	{
-		printf("Repeat: %d\n", count);
-		float startTime = (float)clock()/CLOCKS_PER_SEC;
-		//leaving edges untouched
-		for (int i = 1; i < DIM - 1; i++)
+		for (int j = PAD; j < DIM - PAD; j++)
 		{
-			for (int j = 1; j < DIM - 1; j++)
+			for (int k = PAD; k < DIM - PAD; k++)
 			{
-				for (int k = 1; k < DIM - 1; k++)
+				for (int index = 0; index < NEIGHBORHOOD_SIZE; index ++)
 				{
-					min_loc = size;
-					max_loc = 0;
-					for (int dx = -1; dx <= 1; dx++)
-					{
-						for (int dy = -1; dy <= 1; dy++)
-						{
-							for (int dz = -1; dz <= 1; dz++)
-							{
-								location = standard_order(i+dx, j+dy, k+dz);
-								if (location < min_loc){
-									min_loc = location;
-								}
-								if (location > max_loc)
-								{
-									max_loc = location;
-								}
-								neighborhood[9*(dx+1)+3*(dy+1)+dz+1] = stdmatrix[i][j][k];
-							}
-						}
-					}
-					stdoutmatrix[i][j][k] = kernel(neighborhood);
-					std_total_distance += (int) (max_loc - min_loc);
+					int dx = neighborhood_indices[index][0];
+					int dy = neighborhood_indices[index][1];
+					int dz = neighborhood_indices[index][2];
+					neighborhood[index] = matrix[ordering(i+dx, j+dy, k+dz)];
 				}
+				outmatrix[location] = kernel(neighborhood);
+				location++;
 			}
 		}
-
-		float midTime = (float)clock()/CLOCKS_PER_SEC;
-		printf("Finished Regular in time %f\n", midTime-startTime);
-		for (int i = 1; i < DIM - 1; i++)
-		{
-			for (int j = 1; j < DIM - 1; j++)
-			{
-				for (int k = 1; k < DIM - 1; k++)
-				{
-					max_loc = 0;
-					min_loc = size;
-					for (int dx = -1; dx <= 1; dx++)
-					{
-						for (int dy = -1; dy <= 1; dy++)
-						{
-							for (int dz = -1; dz <= 1; dz++)
-							{
-								location = mortonEncode_LUT(i+dx, j+dy, k+dz);
-									if (location < min_loc){
-										min_loc = location;
-									}
-									if (location > max_loc)
-									{
-										max_loc = location;
-									}
-								neighborhood[9*(dx+1)+3*(dy+1)+dz+1] = zmatrix[location];
-							}
-						}
-					}
-					zoutmatrix[standard_order(i, j, k)] = kernel(neighborhood);
-					z_total_distance += (int)(max_loc - min_loc);
-				}
-			}
-		}
-		float finalTime = (float)clock()/CLOCKS_PER_SEC;
-		printf("Std time: %f\nZtime: %f\n", midTime-startTime, finalTime-midTime);
-		printf("Std Distance: %d\nZdistance: %d\n", std_total_distance, z_total_distance);
-		std_total_distance = 0;
-		z_total_distance = 0;
 	}
+	float finalTime = (float)clock()/CLOCKS_PER_SEC;
+	unsigned long long total = 0;
+	for (int i = 0; i < size; i++)
+	{
+		total += outmatrix[i];
+	}
+	printf("Method ");
+	printf(ORDERING);
+	printf("\n");
+	printf("Elapsed: %f\nTotal: %llu\n", finalTime-midTime, total);
+	return 0;
 }
