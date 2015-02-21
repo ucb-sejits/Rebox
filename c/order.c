@@ -26,7 +26,7 @@
 #ifndef LT
 #define ORDERING "ZMB"
 // method to seperate bits from a given integer 3 positions apart
-inline unsigned long splitBy3(unsigned int a){
+unsigned long splitBy3(unsigned int a){
     unsigned long x = a & 0x1fffff; // we only look at the first 21 bits
     x = (x | x << 32) & 0x1f00000000ffff;  // shift left 32 bits, OR with self, and 00011111000000000000000000000000000000001111111111111111
     x = (x | x << 16) & 0x1f0000ff0000ff;  // shift left 32 bits, OR with self, and 00011111000000000000000011111111000000000000000011111111
@@ -36,7 +36,7 @@ inline unsigned long splitBy3(unsigned int a){
     return x;
 }
 
-inline unsigned long ordering(unsigned int x, unsigned int y, unsigned int z){
+unsigned long ordering(unsigned int x, unsigned int y, unsigned int z){
     unsigned long answer = splitBy3(x) | splitBy3(y) << 1 | splitBy3(z) << 2;
     return answer;
 }
@@ -153,7 +153,7 @@ static const unsigned int morton256_z[256] = {
     0x00924804, 0x00924820, 0x00924824, 0x00924900, 0x00924904, 0x00924920, 0x00924924
 };
 
-inline unsigned long ordering(unsigned int x, unsigned int y, unsigned int z){
+unsigned long ordering(unsigned int x, unsigned int y, unsigned int z){
     unsigned long answer = 0;
     answer =    morton256_z[(z >> 16) & 0xFF ] | // we start by shifting the third byte, since we only look at the first 21 bits
                 morton256_y[(y >> 16) & 0xFF ] |
