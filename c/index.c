@@ -2,7 +2,10 @@
 #include <time.h>
 
 #ifndef DIM
-#define DIM 3
+#define DIM 512
+#endif
+#ifndef DIV
+#define DIV 2
 #endif
 #define REPEAT 3
 
@@ -170,8 +173,8 @@ int main(int argc, char** argv)
 		{
 			for (int k = 0; k < DIM; k++)
 			{
-				stdmatrix[i][j][k] = i + j + k;
-				zmatrix[mortonEncode_LUT(i, j, k)] = i + j + k;
+				stdmatrix[i][j][k] = (i + j + k)/DIV;
+				zmatrix[mortonEncode_LUT(i, j, k)] = (i + j + k)/DIV;
 			}
 		}
 	}
