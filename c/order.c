@@ -26,8 +26,8 @@
 #ifndef LT
 #define ORDERING "ZMB"
 // method to seperate bits from a given integer 3 positions apart
-inline uint64_t splitBy3(unsigned int a){
-    uint64_t x = a & 0x1fffff; // we only look at the first 21 bits
+inline unsigned long splitBy3(unsigned int a){
+    unsigned long x = a & 0x1fffff; // we only look at the first 21 bits
     x = (x | x << 32) & 0x1f00000000ffff;  // shift left 32 bits, OR with self, and 00011111000000000000000000000000000000001111111111111111
     x = (x | x << 16) & 0x1f0000ff0000ff;  // shift left 32 bits, OR with self, and 00011111000000000000000011111111000000000000000011111111
     x = (x | x << 8) & 0x100f00f00f00f00f; // shift left 32 bits, OR with self, and 0001000000001111000000001111000000001111000000001111000000000000
@@ -36,13 +36,13 @@ inline uint64_t splitBy3(unsigned int a){
     return x;
 }
 
-inline uint64_t ordering(unsigned int x, unsigned int y, unsigned int z){
-    uint64_t answer = splitBy3(x) | splitBy3(y) << 1 | splitBy3(z) << 2;
+inline unsigned long ordering(unsigned int x, unsigned int y, unsigned int z){
+    unsigned long answer = splitBy3(x) | splitBy3(y) << 1 | splitBy3(z) << 2;
     return answer;
 }
 #else
 #define ORDERING "ZLT"
-static const uint32_t morton256_x[256] =
+static const unsigned int morton256_x[256] =
 {
     0x00000000,
     0x00000001, 0x00000008, 0x00000009, 0x00000040, 0x00000041, 0x00000048, 0x00000049, 0x00000200,
@@ -80,7 +80,7 @@ static const uint32_t morton256_x[256] =
 };
 
 // pre-shifted table for Y coordinates (1 bit to the left)
-static const uint32_t morton256_y[256] = {
+static const unsigned int morton256_y[256] = {
     0x00000000,
     0x00000002, 0x00000010, 0x00000012, 0x00000080, 0x00000082, 0x00000090, 0x00000092, 0x00000400,
     0x00000402, 0x00000410, 0x00000412, 0x00000480, 0x00000482, 0x00000490, 0x00000492, 0x00002000,
@@ -117,7 +117,7 @@ static const uint32_t morton256_y[256] = {
 };
 
 // Pre-shifted table for z (2 bits to the left)
-static const uint32_t morton256_z[256] = {
+static const unsigned int morton256_z[256] = {
     0x00000000,
     0x00000004, 0x00000020, 0x00000024, 0x00000100, 0x00000104, 0x00000120, 0x00000124, 0x00000800,
     0x00000804, 0x00000820, 0x00000824, 0x00000900, 0x00000904, 0x00000920, 0x00000924, 0x00004000,
@@ -153,8 +153,8 @@ static const uint32_t morton256_z[256] = {
     0x00924804, 0x00924820, 0x00924824, 0x00924900, 0x00924904, 0x00924920, 0x00924924
 };
 
-inline uint64_t ordering(unsigned int x, unsigned int y, unsigned int z){
-    uint64_t answer = 0;
+inline unsigned long ordering(unsigned int x, unsigned int y, unsigned int z){
+    unsigned long answer = 0;
     answer =    morton256_z[(z >> 16) & 0xFF ] | // we start by shifting the third byte, since we only look at the first 21 bits
                 morton256_y[(y >> 16) & 0xFF ] |
                 morton256_x[(x >> 16) & 0xFF ];
