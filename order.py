@@ -20,9 +20,10 @@ def z_order(indices, dimensions):
     """
     output = 0
     length = len(indices)
-    num_bits = int(math.ceil(max(math.log(index, 2) for index in indices)))
-    for (offset, index), i in itertools.product(enumerate(indices), range(num_bits)):
-        output |= (index & (1 << i)) << ((length - 1) * i + offset)
+    num_bits = int(math.ceil(max(math.log(index, 2) for index in indices))) + 1
+    for mask in range(0, num_bits):
+        for shift, index in enumerate(indices):
+            output |= (index & (1 << mask)) << shift
     return output
 
 def regular_order(indices, dimensions):
