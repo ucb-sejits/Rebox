@@ -2,9 +2,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define NDIM 2
+#define NDIM 4
 
-#define BITS 10
+#define BITS 6
 
 #define UNDERFLOW_START (32 - 32%NDIM - NDIM)
 
@@ -117,21 +117,20 @@ static inline void clamp(uint32_t* code_ptr)
 		mask |= final_mask << i;
 	}
 	*code_ptr |= mask;
-
 }
 
 
 
-int main(int argc, const char* argv[])
-{
-	uint32_t x = 1<<13;
-	uint32_t y = 0;
-	uint32_t c = encode(x, y);
-	printf("original code: %d", c);
-	printf("\n");
-	printf("xs: %d\n", Part1By1(x));
-	printf("ys: %d\n", Part1By1(y) << 1);
-	clamp(&c);
-	printf("%d", c);
-	printf("\n");
-}
+//int main(int argc, const char* argv[])
+//{
+//	uint32_t x = 1<<13;
+//	uint32_t y = 0;
+//	uint32_t c = encode(x, y);
+//	printf("original code: %d", c);
+//	printf("\n");
+//	printf("xs: %d\n", Part1By1(x));
+//	printf("ys: %d\n", Part1By1(y) << 1);
+//	clamp(&c);
+//	printf("%d", c);
+//	printf("\n");
+//}
