@@ -23,44 +23,29 @@ class Ordering(object):
 
     @abc.abstractmethod
     def __init__(self, indices, dimensions):
-        pass
+        return NotImplemented
 
-    @abc.abstractmethod
     def __add__(self, other):
-        pass
+        return NotImplemented
 
-    @abc.abstractmethod
     def __sub__(self, other):
-        pass
+        return NotImplemented
 
-    @abc.abstractmethod
     def __mul__(self, other):
-        pass
+        return NotImplemented
 
-    @abc.abstractmethod
     def __div__(self, other):
-        pass
+        return NotImplemented
 
-    @abc.abstractmethod
     def __truediv__(self, other):
-        pass
+        return NotImplemented
 
 
 class ZOrder(Ordering):
 
     def __init__(self, indices, dimensions):
         output = 0
-        self.stride = len(indices)
-        num_bits = int(math.ceil(max(math.log(index, 2) for index in indices))) + 1
-        for mask in range(0, num_bits):
-            for shift, index in enumerate(indices):
-                output |= (index & (1 << mask)) << shift
-        self._index = output
-
-    def __add__(self, other):
-        """
-        other must be a tuple indicating deltas in each direction
-        """
+        shift = 0
 
 
 def z_order(indices, dimensions):

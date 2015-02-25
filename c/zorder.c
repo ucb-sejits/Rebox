@@ -1,31 +1,17 @@
-/*
- * zorder.c
- *
- *  Created on: Feb 21, 2015
- *      Author: nzhang-dev
- */
 #include <stdio.h>
-#include <time.h>
+#include <stdint.h>
 #include <stdlib.h>
 
-#ifndef DIM
-#define DIM 64
-#endif
+#define NDIM 2
 
-#ifndef DIV
-#define DIV 2
-#endif
+#define BITS 10
 
-#define NEIGHBORHOOD_SIZE 9
+#define UNDERFLOW_START (32 - 32%NDIM - NDIM)
 
-#define standard_order(x, y) (((unsigned long) x) * DIM + y)
+#define OVERFLOW_START (NDIM*BITS)
 
+#define OVERFLOW_END (UNDERFLOW_START - 1)
 
-#undef LT
-
-#ifndef ORDERING
-#ifndef LT
-#define ORDERING "ZMB"
 
 //https://fgiesen.wordpress.com/2009/12/13/decoding-morton-codes/
 
@@ -51,9 +37,9 @@ static uint32_t Part1By2(uint32_t x)
   return x;
 }
 
-static uint32_t encode(uint32_t x, uint32_t y)
+static inline uint32_t encode(uint32_t x, uint32_t y)
 {
-  return (Part1By1(y) << 1) + Part1By1(x);
+	return  Part1By1(x) | (Part1By1(y) << 1);
 }
 
 
@@ -103,96 +89,49 @@ static inline uint32_t decodeY(uint32_t code)
   return Compact1By1(code >> 1);
 }
 
-#else
-#define ORDERING "ZLT"
 
 
-#endif
-#else
-#undef ORDERING
-#define ORDERING "STD"
-
-
-uint32_t encode(uint32_t x, uint32_t y)
+static inline void clamp(uint32_t* code_ptr)
 {
-	return standard_order(x, y);
-}
-
-uint32_t decodeX(uint32_t code)
-{
-	return code/DIM;
-}
-
-uint32_t decodeY(uint32_t code)
-{
-return code % DIM;
-}
-
-uint32_t clamped_add(uint32_t code, uint32_t dx, uint32_t dy)
-{
-	uint32_t x_comp = decodeX(code);
-	uint32_t y_comp = decodeY(code);
-	x_comp = (x_comp + dx < 0 ? 0 : (x_comp + dx >= DIM ? DIM : x_comp + dx));
-	y_comp = (y_comp + dy < 0 ? 0 : (y_comp + dy >= DIM ? DIM : y_comp + dy));
-	return encode(x_comp, y_comp);
-}
-
-uint32_t add(uint32_t a, uint32_t b)
-{
-	return clamped_add(a, decodeX(b), decodeY(b));
-}
-
-
-
-#endif
-
-int kernel(int* region) // calculates size pt average stencil
-{
-	int total = 0;
-	for (int i = 0; i < NEIGHBORHOOD_SIZE; i++)
+	//underflow has to come first, since it modifies all the bits
+	uint32_t mask = (*code_ptr >> UNDERFLOW_START) & ((1 << (NDIM + 1)) - 1); ///underflow indicator bits. 1 is fine, 0 is underflow
+	uint32_t final_mask = mask;
+	for (int i = NDIM; i < 32; i += NDIM)
 	{
-		total += region[i];
+		final_mask |= mask << i;
 	}
-	return total/NEIGHBORHOOD_SIZE;
+	final_mask = ~final_mask;
+	*code_ptr &= final_mask;
+	//now for overflow.
+	mask = (*code_ptr >> OVERFLOW_START) & ((1 << (OVERFLOW_END - OVERFLOW_START + 1)) - 1);
+	final_mask = 0;
+	for (int i = 0; i < (OVERFLOW_END - OVERFLOW_START + 1)/NDIM; i++)
+	{
+		final_mask |= mask & ((1 << NDIM) - 1);
+		mask >>= NDIM;
+	}
+	mask = 0;
+
+	for (int i = 0; i < UNDERFLOW_START; i+= NDIM)
+	{
+		mask |= final_mask << i;
+	}
+	*code_ptr |= mask;
+
 }
 
-int main(int argc, char** argv)
-{
-	printf("Allocating\n");
-	long size = DIM*DIM;
-	int* matrix = (int*) malloc(size * sizeof(int));
-	int neighborhood[NEIGHBORHOOD_SIZE];
-	long location = 0;
-	int neighborhood_indices[NEIGHBORHOOD_SIZE][2] = {{-1, -1}, {-1, 0}, {-1, 1}, {0, -1}, {0, 0}, {0, 1}, {1, -1}, {1, 0}, {1, 1}};
-	unsigned long long total = 0;
-	printf("Allocated\n");
-	for (int i = 0; i < DIM; i++)
-	{
-		for (int j = 0; j < DIM; j++)
-		{
-			matrix[encode(i, j)] = (i + j)/DIV;
-		}
-	}
-	float midTime = (float)clock()/CLOCKS_PER_SEC;
-	for (uint32_t i = 0; i < size; i++)
-	{
-		int x = decodeX(i);
-		int y = decodeY(i);
-		for (int j = 0; j < NEIGHBORHOOD_SIZE; j++)
-		{
-			int dx = neighborhood_indices[j][0];
-			int nx = clamp(x + dx);
-			int dy = neighborhood_indices[j][1];
-			int ny = clamp(y + dy);
-			neighborhood[j] = matrix[encode(nx, ny)];
-		}
-		total += kernel(neighborhood);
-	}
 
-	float finalTime = (float)clock()/CLOCKS_PER_SEC;
-	printf("Method ");
-	printf(ORDERING);
+
+int main(int argc, const char* argv[])
+{
+	uint32_t x = 1<<13;
+	uint32_t y = 0;
+	uint32_t c = encode(x, y);
+	printf("original code: %d", c);
 	printf("\n");
-	printf("Elapsed: %f\nTotal: %llu\n", finalTime-midTime, total);
-	return 0;
+	printf("xs: %d\n", Part1By1(x));
+	printf("ys: %d\n", Part1By1(y) << 1);
+	clamp(&c);
+	printf("%d", c);
+	printf("\n");
 }
