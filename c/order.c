@@ -8,143 +8,15 @@
 #include <time.h>
 #include <stdlib.h>
 
+#include "zorder.c"
+#include "benchmark.c"
+
 #ifndef DIM
 #define DIM 64
 #endif
 
-#ifndef DIV
-#define DIV 2
-#endif
-
 #define NEIGHBORHOOD_SIZE 9
 
-#define standard_order(x, y) (((unsigned long) x) * DIM + y)
-
-
-#undef LT
-
-#ifndef ORDERING
-#ifndef LT
-#define ORDERING "ZMB"
-
-//https://fgiesen.wordpress.com/2009/12/13/decoding-morton-codes/
-
-// "Insert" a 0 bit after each of the 16 low bits of x
-uint32_t Part1By1(uint32_t x)
-{
-  x &= 0x0000ffff;                  // x = ---- ---- ---- ---- fedc ba98 7654 3210
-  x = (x ^ (x <<  8)) & 0x00ff00ff; // x = ---- ---- fedc ba98 ---- ---- 7654 3210
-  x = (x ^ (x <<  4)) & 0x0f0f0f0f; // x = ---- fedc ---- ba98 ---- 7654 ---- 3210
-  x = (x ^ (x <<  2)) & 0x33333333; // x = --fe --dc --ba --98 --76 --54 --32 --10
-  x = (x ^ (x <<  1)) & 0x55555555; // x = -f-e -d-c -b-a -9-8 -7-6 -5-4 -3-2 -1-0
-  return x;
-}
-
-// "Insert" two 0 bits after each of the 10 low bits of x
-static uint32_t Part1By2(uint32_t x)
-{
-  x &= 0x000003ff;                  // x = ---- ---- ---- ---- ---- --98 7654 3210
-  x = (x ^ (x << 16)) & 0xff0000ff; // x = ---- --98 ---- ---- ---- ---- 7654 3210
-  x = (x ^ (x <<  8)) & 0x0300f00f; // x = ---- --98 ---- ---- 7654 ---- ---- 3210
-  x = (x ^ (x <<  4)) & 0x030c30c3; // x = ---- --98 ---- 76-- --54 ---- 32-- --10
-  x = (x ^ (x <<  2)) & 0x09249249; // x = ---- 9--8 --7- -6-- 5--4 --3- -2-- 1--0
-  return x;
-}
-
-static uint32_t encode(uint32_t x, uint32_t y)
-{
-  return (Part1By1(y) << 1) + Part1By1(x);
-}
-
-
-
-
-static inline uint32_t Compact1By1(uint32_t x)
-{
-  x &= 0x55555555;                  // x = -f-e -d-c -b-a -9-8 -7-6 -5-4 -3-2 -1-0
-  x = (x ^ (x >>  1)) & 0x33333333; // x = --fe --dc --ba --98 --76 --54 --32 --10
-  x = (x ^ (x >>  2)) & 0x0f0f0f0f; // x = ---- fedc ---- ba98 ---- 7654 ---- 3210
-  x = (x ^ (x >>  4)) & 0x00ff00ff; // x = ---- ---- fedc ba98 ---- ---- 7654 3210
-  x = (x ^ (x >>  8)) & 0x0000ffff; // x = ---- ---- ---- ---- fedc ba98 7654 3210
-  return x;
-}
-
-// Inverse of Part1By2 - "delete" all bits not at positions divisible by 3
-static inline uint32_t Compact1By2(uint32_t x)
-{
-  x &= 0x09249249;                  // x = ---- 9--8 --7- -6-- 5--4 --3- -2-- 1--0
-  x = (x ^ (x >>  2)) & 0x030c30c3; // x = ---- --98 ---- 76-- --54 ---- 32-- --10
-  x = (x ^ (x >>  4)) & 0x0300f00f; // x = ---- --98 ---- ---- 7654 ---- ---- 3210
-  x = (x ^ (x >>  8)) & 0xff0000ff; // x = ---- --98 ---- ---- ---- ---- 7654 3210
-  x = (x ^ (x >> 16)) & 0x000003ff; // x = ---- ---- ---- ---- ---- --98 7654 3210
-  return x;
-}
-
-static inline uint32_t add(uint32_t a, uint32_t b)
-{
-    unsigned int carry = a & b;
-    unsigned int result = a ^ b;
-    while(carry != 0)
-    {
-        unsigned int shiftedcarry = carry << 2;
-        carry = result & shiftedcarry;
-        result ^= shiftedcarry;
-    }
-    return result;
-}
-
-static inline uint32_t decodeX(uint32_t code)
-{
-  return Compact1By1(code >> 0);
-}
-
-static inline uint32_t decodeY(uint32_t code)
-{
-  return Compact1By1(code >> 1);
-}
-
-#else
-#define ORDERING "ZLT"
-
-
-#endif
-#else
-#undef ORDERING
-#define ORDERING "STD"
-
-
-uint32_t encode(uint32_t x, uint32_t y)
-{
-	return standard_order(x, y);
-}
-
-uint32_t decodeX(uint32_t code)
-{
-	return code/DIM;
-}
-
-uint32_t decodeY(uint32_t code)
-{
-return code % DIM;
-}
-
-uint32_t clamped_add(uint32_t code, uint32_t dx, uint32_t dy)
-{
-	uint32_t x_comp = decodeX(code);
-	uint32_t y_comp = decodeY(code);
-	x_comp = (x_comp + dx < 0 ? 0 : (x_comp + dx >= DIM ? DIM : x_comp + dx));
-	y_comp = (y_comp + dy < 0 ? 0 : (y_comp + dy >= DIM ? DIM : y_comp + dy));
-	return encode(x_comp, y_comp);
-}
-
-uint32_t add(uint32_t a, uint32_t b)
-{
-	return clamped_add(a, decodeX(b), decodeY(b));
-}
-
-
-
-#endif
 
 int kernel(int* region) // calculates size pt average stencil
 {
@@ -170,7 +42,7 @@ int main(int argc, char** argv)
 	{
 		for (int j = 0; j < DIM; j++)
 		{
-			matrix[encode(i, j)] = (i + j)/DIV;
+			matrix[encode(i, j)] = (i + j)/2;
 		}
 	}
 	float midTime = (float)clock()/CLOCKS_PER_SEC;
@@ -190,8 +62,6 @@ int main(int argc, char** argv)
 	}
 
 	float finalTime = (float)clock()/CLOCKS_PER_SEC;
-	printf("Method ");
-	printf(ORDERING);
 	printf("\n");
 	printf("Elapsed: %f\nTotal: %llu\n", finalTime-midTime, total);
 	return 0;

@@ -13,138 +13,58 @@
 #define OVERFLOW_END (UNDERFLOW_START - 1)
 
 
-//https://fgiesen.wordpress.com/2009/12/13/decoding-morton-codes/
-
-// "Insert" a 0 bit after each of the 16 low bits of x
-uint32_t Part1By1(uint32_t x)
-{
-  x &= 0x0000ffff;                  // x = ---- ---- ---- ---- fedc ba98 7654 3210
-  x = (x ^ (x <<  8)) & 0x00ff00ff; // x = ---- ---- fedc ba98 ---- ---- 7654 3210
-  x = (x ^ (x <<  4)) & 0x0f0f0f0f; // x = ---- fedc ---- ba98 ---- 7654 ---- 3210
-  x = (x ^ (x <<  2)) & 0x33333333; // x = --fe --dc --ba --98 --76 --54 --32 --10
-  x = (x ^ (x <<  1)) & 0x55555555; // x = -f-e -d-c -b-a -9-8 -7-6 -5-4 -3-2 -1-0
-  return x;
-}
-
-// "Insert" two 0 bits after each of the 10 low bits of x
-static uint32_t Part1By2(uint32_t x)
-{
-  x &= 0x000003ff;                  // x = ---- ---- ---- ---- ---- --98 7654 3210
-  x = (x ^ (x << 16)) & 0xff0000ff; // x = ---- --98 ---- ---- ---- ---- 7654 3210
-  x = (x ^ (x <<  8)) & 0x0300f00f; // x = ---- --98 ---- ---- 7654 ---- ---- 3210
-  x = (x ^ (x <<  4)) & 0x030c30c3; // x = ---- --98 ---- 76-- --54 ---- 32-- --10
-  x = (x ^ (x <<  2)) & 0x09249249; // x = ---- 9--8 --7- -6-- 5--4 --3- -2-- 1--0
-  return x;
-}
-
-static inline uint32_t encode(uint32_t x, uint32_t y)
-{
-	return  Part1By1(x) | (Part1By1(y) << 1);
-}
 
 
 
-
-static inline uint32_t Compact1By1(uint32_t x)
-{
-  x &= 0x55555555;                  // x = -f-e -d-c -b-a -9-8 -7-6 -5-4 -3-2 -1-0
-  x = (x ^ (x >>  1)) & 0x33333333; // x = --fe --dc --ba --98 --76 --54 --32 --10
-  x = (x ^ (x >>  2)) & 0x0f0f0f0f; // x = ---- fedc ---- ba98 ---- 7654 ---- 3210
-  x = (x ^ (x >>  4)) & 0x00ff00ff; // x = ---- ---- fedc ba98 ---- ---- 7654 3210
-  x = (x ^ (x >>  8)) & 0x0000ffff; // x = ---- ---- ---- ---- fedc ba98 7654 3210
-  return x;
-}
-
-// Inverse of Part1By2 - "delete" all bits not at positions divisible by 3
-static inline uint32_t Compact1By2(uint32_t x)
-{
-  x &= 0x09249249;                  // x = ---- 9--8 --7- -6-- 5--4 --3- -2-- 1--0
-  x = (x ^ (x >>  2)) & 0x030c30c3; // x = ---- --98 ---- 76-- --54 ---- 32-- --10
-  x = (x ^ (x >>  4)) & 0x0300f00f; // x = ---- --98 ---- ---- 7654 ---- ---- 3210
-  x = (x ^ (x >>  8)) & 0xff0000ff; // x = ---- --98 ---- ---- ---- ---- 7654 3210
-  x = (x ^ (x >> 16)) & 0x000003ff; // x = ---- ---- ---- ---- ---- --98 7654 3210
-  return x;
-}
-
-static inline uint32_t decodeX(uint32_t code)
-{
-  return Compact1By1(code >> 0);
-}
-
-static inline uint32_t decodeY(uint32_t code)
-{
-  return Compact1By1(code >> 1);
-}
-
-//static const uint32_t mask_map_32[1 << NDIM] = {0, 1431655765, 2863311530, 4294967295};
-//
-//static const uint32_t mask_map_data[BITS*NDIM] = {0, 21845, 43690, 65535};
-//
-//static const uint32_t filter_mask = (1 << BITS*NDIM) - 1;
-//
-//
-//static inline void clamp(uint32_t* code_ptr)
-//{
-//	//underflow has to come first, since it modifies all the bits
-//	uint32_t mask = (*code_ptr >> UNDERFLOW_START) & ((1 << (NDIM)) - 1); ///underflow indicator bits. 1 is fine, 0 is underflow
-//	mask = mask_map_32[mask];
-//	*code_ptr &= ~mask;
-//	//now for overflow.
-//	mask = (*code_ptr >> OVERFLOW_START) & ((1 << (OVERFLOW_END - OVERFLOW_START + 1)) - 1);
-//	uint32_t final_mask = 0;
-//	for (int i = 0; i < (OVERFLOW_END - OVERFLOW_START + 1)/NDIM; i++)
-//	{
-//		final_mask |= mask & ((1 << NDIM) - 1);
-//		mask >>= NDIM;
-//	}
-//	printf("mask key: %d\n", final_mask);
-//
-//	mask = mask_map_data[final_mask];
-//	*code_ptr |= mask;
-//	*code_ptr &= filter_mask;
-//}
-
-
-static const uint32_t underflow_mask[16] = {0, 286331153, 572662306, 858993459, 1145324612, 1431655765, 1717986918, 2004318071, 2290649224, 2576980377, 2863311530, 3149642683, 3435973836, 3722304989, 4008636142, 4294967295};
-static const uint32_t overflow_mask[16] = {0, 1118481, 2236962, 3355443, 4473924, 5592405, 6710886, 7829367, 8947848, 10066329, 11184810, 12303291, 13421772, 14540253, 15658734, 16777215};
-void clamp(uint32_t* code) {
-    * code &= ~ underflow_mask[(* code >> 24 & 15)];
-    uint32_t mask = * code >> 24 & 15;
-    * code |= overflow_mask[(mask >> 0 & 15)];
-    * code &= 16777215;
-};
-
-static const uint32_t repeat_mask_array[4] = {286331153, 572662306, 1145324612, 2290649224};
-void add(uint32_t* code, uint32_t code2) {
+static inline void add(uint32_t* code, uint32_t code2) {
+    uint32_t carry_in = 0;
     uint32_t code_copy = * code;
     * code = 0;
-    uint32_t masked_code;
-    uint32_t masked_code2;
-    masked_code = code_copy | ~ repeat_mask_array[0];
-    masked_code2 = code2 & repeat_mask_array[0];
-    * code |= masked_code + masked_code2 & repeat_mask_array[0];
-    masked_code = code_copy | ~ repeat_mask_array[1];
-    masked_code2 = code2 & repeat_mask_array[1];
-    * code |= masked_code + masked_code2 & repeat_mask_array[1];
-    masked_code = code_copy | ~ repeat_mask_array[2];
-    masked_code2 = code2 & repeat_mask_array[2];
-    * code |= masked_code + masked_code2 & repeat_mask_array[2];
-    masked_code = code_copy | ~ repeat_mask_array[3];
-    masked_code2 = code2 & repeat_mask_array[3];
-    * code |= masked_code + masked_code2 & repeat_mask_array[3];
+    * code |= (code_copy >> 0x0 ^ (code2 >> 0x0 ^ carry_in)) << 0x0;
+    carry_in = (carry_in & (code_copy >> 0x0 | code2 >> 0x0) | ~ carry_in & (code_copy >> 0x0 & code2 >> 0x0)) & 0xf;
+    * code |= (code_copy >> 0x4 ^ (code2 >> 0x4 ^ carry_in)) << 0x4;
+    carry_in = (carry_in & (code_copy >> 0x4 | code2 >> 0x4) | ~ carry_in & (code_copy >> 0x4 & code2 >> 0x4)) & 0xf;
+    * code |= (code_copy >> 0x8 ^ (code2 >> 0x8 ^ carry_in)) << 0x8;
+    carry_in = (carry_in & (code_copy >> 0x8 | code2 >> 0x8) | ~ carry_in & (code_copy >> 0x8 & code2 >> 0x8)) & 0xf;
+    * code |= (code_copy >> 0xc ^ (code2 >> 0xc ^ carry_in)) << 0xc;
+    carry_in = (carry_in & (code_copy >> 0xc | code2 >> 0xc) | ~ carry_in & (code_copy >> 0xc & code2 >> 0xc)) & 0xf;
+    * code |= (code_copy >> 0x10 ^ (code2 >> 0x10 ^ carry_in)) << 0x10;
+    carry_in = (carry_in & (code_copy >> 0x10 | code2 >> 0x10) | ~ carry_in & (code_copy >> 0x10 & code2 >> 0x10)) & 0xf;
+    * code |= (code_copy >> 0x14 ^ (code2 >> 0x14 ^ carry_in)) << 0x14;
+    carry_in = (carry_in & (code_copy >> 0x14 | code2 >> 0x14) | ~ carry_in & (code_copy >> 0x14 & code2 >> 0x14)) & 0xf;
+    * code |= (code_copy >> 0x18 ^ (code2 >> 0x18 ^ carry_in)) << 0x18;
 };
 
+
+static const uint32_t underflow_mask[16] = {0x0, 0x11111111, 0x22222222, 0x33333333, 0x44444444, 0x55555555, 0x66666666, 0x77777777, 0x88888888, 0x99999999, 0xaaaaaaaa, 0xbbbbbbbb, 0xcccccccc, 0xdddddddd, 0xeeeeeeee, 0xffffffff};
+static const uint32_t overflow_mask[16] = {0x0, 0x111111, 0x222222, 0x333333, 0x444444, 0x555555, 0x666666, 0x777777, 0x888888, 0x999999, 0xaaaaaa, 0xbbbbbb, 0xcccccc, 0xdddddd, 0xeeeeee, 0xffffff};
+static inline void clamp(uint32_t* code) {
+    * code &= ~ underflow_mask[(* code >> 0x18 & 0xf)];
+    uint32_t mask = * code >> 0x18 & 0xf;
+    * code |= overflow_mask[(mask >> 0x0 & 0xf)];
+    * code &= 0xffffff;
+};
+
+
+static const uint32_t lookup_table[0x4][64] = {{0x0, 0x1, 0x10, 0x11, 0x100, 0x101, 0x110, 0x111, 0x1000, 0x1001, 0x1010, 0x1011, 0x1100, 0x1101, 0x1110, 0x1111, 0x10000, 0x10001, 0x10010, 0x10011, 0x10100, 0x10101, 0x10110, 0x10111, 0x11000, 0x11001, 0x11010, 0x11011, 0x11100, 0x11101, 0x11110, 0x11111, 0x100000, 0x100001, 0x100010, 0x100011, 0x100100, 0x100101, 0x100110, 0x100111, 0x101000, 0x101001, 0x101010, 0x101011, 0x101100, 0x101101, 0x101110, 0x101111, 0x110000, 0x110001, 0x110010, 0x110011, 0x110100, 0x110101, 0x110110, 0x110111, 0x111000, 0x111001, 0x111010, 0x111011, 0x111100, 0x111101, 0x111110, 0x111111}, {0x0, 0x2, 0x20, 0x22, 0x200, 0x202, 0x220, 0x222, 0x2000, 0x2002, 0x2020, 0x2022, 0x2200, 0x2202, 0x2220, 0x2222, 0x20000, 0x20002, 0x20020, 0x20022, 0x20200, 0x20202, 0x20220, 0x20222, 0x22000, 0x22002, 0x22020, 0x22022, 0x22200, 0x22202, 0x22220, 0x22222, 0x200000, 0x200002, 0x200020, 0x200022, 0x200200, 0x200202, 0x200220, 0x200222, 0x202000, 0x202002, 0x202020, 0x202022, 0x202200, 0x202202, 0x202220, 0x202222, 0x220000, 0x220002, 0x220020, 0x220022, 0x220200, 0x220202, 0x220220, 0x220222, 0x222000, 0x222002, 0x222020, 0x222022, 0x222200, 0x222202, 0x222220, 0x222222}, {0x0, 0x4, 0x40, 0x44, 0x400, 0x404, 0x440, 0x444, 0x4000, 0x4004, 0x4040, 0x4044, 0x4400, 0x4404, 0x4440, 0x4444, 0x40000, 0x40004, 0x40040, 0x40044, 0x40400, 0x40404, 0x40440, 0x40444, 0x44000, 0x44004, 0x44040, 0x44044, 0x44400, 0x44404, 0x44440, 0x44444, 0x400000, 0x400004, 0x400040, 0x400044, 0x400400, 0x400404, 0x400440, 0x400444, 0x404000, 0x404004, 0x404040, 0x404044, 0x404400, 0x404404, 0x404440, 0x404444, 0x440000, 0x440004, 0x440040, 0x440044, 0x440400, 0x440404, 0x440440, 0x440444, 0x444000, 0x444004, 0x444040, 0x444044, 0x444400, 0x444404, 0x444440, 0x444444}, {0x0, 0x8, 0x80, 0x88, 0x800, 0x808, 0x880, 0x888, 0x8000, 0x8008, 0x8080, 0x8088, 0x8800, 0x8808, 0x8880, 0x8888, 0x80000, 0x80008, 0x80080, 0x80088, 0x80800, 0x80808, 0x80880, 0x80888, 0x88000, 0x88008, 0x88080, 0x88088, 0x88800, 0x88808, 0x88880, 0x88888, 0x800000, 0x800008, 0x800080, 0x800088, 0x800800, 0x800808, 0x800880, 0x800888, 0x808000, 0x808008, 0x808080, 0x808088, 0x808800, 0x808808, 0x808880, 0x808888, 0x880000, 0x880008, 0x880080, 0x880088, 0x880800, 0x880808, 0x880880, 0x880888, 0x888000, 0x888008, 0x888080, 0x888088, 0x888800, 0x888808, 0x888880, 0x888888}};
+static inline uint32_t encode(uint32_t* indices) {
+    return (lookup_table[0x0][(indices[0x0] >> 0x0 & 0x3f)] | lookup_table[0x1][(indices[0x1] >> 0x0 & 0x3f)] | lookup_table[0x2][(indices[0x2] >> 0x0 & 0x3f)] | lookup_table[0x3][(indices[0x3] >> 0x0 & 0x3f)]) << 0x0;
+};
+
+//
 //int main(int argc, const char* argv[])
 //{
 //	uint32_t w = 3;
 //	uint32_t x = 5;
 //	uint32_t y = 7;
 //	uint32_t z = 21;
-//	uint32_t c = encode(encode(w, y), encode(x, z));
-//	uint32_t c_copy = c;
-//	printf("original code: %d\n", c);
-//	add(&c, c_copy);
-//	printf("doubled: %d\n", c);
-//	uint32_t new_c = encode(encode(w*2, y*2), encode(x*2, z*2));
-//	printf("doubled right: %d\n", new_c);
+//	uint32_t z2 = -5;
+//	uint32_t i1[] = {w, x, y, z};
+//	uint32_t i2[] = {w, x, y, z2};
+//	uint32_t i3[] = {2*w, 2*x, 2*y, z+z2};
+//	uint32_t c1 = encode(i1);
+//	uint32_t c2 = encode(i2);
+//	add(&c1, c2);
+//	printf("Sum: %d\n", c1);
+//	printf("Proper: %d\n", encode(i3));
 //}

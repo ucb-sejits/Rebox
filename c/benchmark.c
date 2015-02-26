@@ -54,6 +54,8 @@ int main(int argc, char* argv[])
 	srand(time(NULL));
 	uint32_t stdRes[SIZE];
 	uint32_t zRes[SIZE];
+	uint32_t total;
+	char *buff = malloc((1L << 32) - 1);
 	for (int i = 0; i < SIZE; i++)
 	{
 		int w = rand() % (1 << (BITS + 1));
@@ -67,7 +69,8 @@ int main(int argc, char* argv[])
 		stdRes[i] |= y;
 		stdRes[i] <<= (BITS + 1);
 		stdRes[i] |= z;
-		zRes[i] = encode(encode(w, y), encode(x, z));
+		uint32_t indices[] = {w, x, y, z};
+		zRes[i] = encode(indices);
 	}
 
 	float stdtime = 0;
@@ -78,21 +81,21 @@ int main(int argc, char* argv[])
 		clock_t start = clock();
 		for (int i = 0; i < SIZE; i++)
 		{
-			stdClamp(&stdRes[i]); //because otherwise if you have an overflow you corrupt the entire thing
 			stdAdd(&stdRes[i], stdRes[i]);
-			stdClamp(&stdRes[i]);
-
+			//stdClamp(&stdRes[i]);
 		}
 		clock_t mid = clock();
 		for (int i = 0; i < SIZE; i++)
 		{
 			add(&zRes[i], zRes[i]);
-			clamp(&zRes[i]);
+			//clamp(&zRes[i]);
 		}
 		clock_t end = clock();
 		stdtime += mid - start;
 		ztime += end - mid;
+		total += buff[12];
 	}
+	printf("%d\r", total);
 	printf("stdTime: %f\tzTime: %f\n", stdtime/CLOCKS_PER_SEC, ztime/CLOCKS_PER_SEC);
 	return 0;
 }
