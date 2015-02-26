@@ -2,9 +2,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define NDIM 2
+#define NDIM 4
 
-#define BITS 10
+#define BITS 6
 
 #define UNDERFLOW_START (32 - 32%NDIM - NDIM)
 
@@ -66,19 +66,6 @@ static inline uint32_t Compact1By2(uint32_t x)
   return x;
 }
 
-static inline uint32_t add(uint32_t a, uint32_t b)
-{
-    unsigned int carry = a & b;
-    unsigned int result = a ^ b;
-    while(carry != 0)
-    {
-        unsigned int shiftedcarry = carry << 2;
-        carry = result & shiftedcarry;
-        result ^= shiftedcarry;
-    }
-    return result;
-}
-
 static inline uint32_t decodeX(uint32_t code)
 {
   return Compact1By1(code >> 0);
@@ -118,27 +105,46 @@ static inline uint32_t decodeY(uint32_t code)
 //}
 
 
-static const uint32_t underflow_mask[4] = {0, 1431655765, 2863311530, 4294967295};
-static const uint32_t overflow_mask[4] = {0, 349525, 699050, 1048575};
+static const uint32_t underflow_mask[16] = {0, 286331153, 572662306, 858993459, 1145324612, 1431655765, 1717986918, 2004318071, 2290649224, 2576980377, 2863311530, 3149642683, 3435973836, 3722304989, 4008636142, 4294967295};
+static const uint32_t overflow_mask[16] = {0, 1118481, 2236962, 3355443, 4473924, 5592405, 6710886, 7829367, 8947848, 10066329, 11184810, 12303291, 13421772, 14540253, 15658734, 16777215};
 void clamp(uint32_t* code) {
-    * code &= ~ underflow_mask[(* code >> 20 & 3)];
-    uint32_t mask = * code >> 20 & 1023;
-    * code |= overflow_mask[((mask >> 0 | mask >> 2 | mask >> 4 | mask >> 6 | mask >> 8) & 3)];
-    * code &= 1048575;
+    * code &= ~ underflow_mask[(* code >> 24 & 15)];
+    uint32_t mask = * code >> 24 & 15;
+    * code |= overflow_mask[(mask >> 0 & 15)];
+    * code &= 16777215;
 };
 
+static const uint32_t repeat_mask_array[4] = {286331153, 572662306, 1145324612, 2290649224};
+void add(uint32_t* code, uint32_t code2) {
+    uint32_t code_copy = * code;
+    * code = 0;
+    uint32_t masked_code;
+    uint32_t masked_code2;
+    masked_code = code_copy | ~ repeat_mask_array[0];
+    masked_code2 = code2 & repeat_mask_array[0];
+    * code |= masked_code + masked_code2 & repeat_mask_array[0];
+    masked_code = code_copy | ~ repeat_mask_array[1];
+    masked_code2 = code2 & repeat_mask_array[1];
+    * code |= masked_code + masked_code2 & repeat_mask_array[1];
+    masked_code = code_copy | ~ repeat_mask_array[2];
+    masked_code2 = code2 & repeat_mask_array[2];
+    * code |= masked_code + masked_code2 & repeat_mask_array[2];
+    masked_code = code_copy | ~ repeat_mask_array[3];
+    masked_code2 = code2 & repeat_mask_array[3];
+    * code |= masked_code + masked_code2 & repeat_mask_array[3];
+};
 
-
-int main(int argc, const char* argv[])
-{
-	uint32_t x = 1<<14;
-	uint32_t y = -3;
-	uint32_t c = encode(x, y);
-	printf("original code: %d", c);
-	printf("\n");
-	printf("xs: %d\n", Part1By1(x));
-	printf("ys: %d\n", Part1By1(y) << 1);
-	clamp(&c);
-	printf("%d", c);
-	printf("\n");
-}
+//int main(int argc, const char* argv[])
+//{
+//	uint32_t w = 3;
+//	uint32_t x = 5;
+//	uint32_t y = 7;
+//	uint32_t z = 21;
+//	uint32_t c = encode(encode(w, y), encode(x, z));
+//	uint32_t c_copy = c;
+//	printf("original code: %d\n", c);
+//	add(&c, c_copy);
+//	printf("doubled: %d\n", c);
+//	uint32_t new_c = encode(encode(w*2, y*2), encode(x*2, z*2));
+//	printf("doubled right: %d\n", new_c);
+//}
