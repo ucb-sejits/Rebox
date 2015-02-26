@@ -18,6 +18,7 @@
 
 #define sClamp(x) (x < 0 ? 0 : (x > max ? max : x))
 
+
 void stdClamp(uint32_t* code)
 {
 	uint32_t c = *code;
@@ -44,6 +45,12 @@ void stdAdd(uint32_t* code, uint32_t code2)
 
 int main(int argc, char* argv[])
 {
+	uint32_t iterations = 1024;
+	if(argc > 1)
+	{
+		iterations = atoi((const char*) argv[1]);
+	}
+	printf("Iterations: %d\n", iterations);
 	srand(time(NULL));
 	uint32_t stdRes[SIZE];
 	uint32_t zRes[SIZE];
@@ -66,7 +73,7 @@ int main(int argc, char* argv[])
 	float stdtime = 0;
 	float ztime = 0;
 
-	for (int k = 0; k < 500; k++)
+	for (int k = 0; k < iterations; k++)
 	{
 		clock_t start = clock();
 		for (int i = 0; i < SIZE; i++)
