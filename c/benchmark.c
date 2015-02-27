@@ -5,14 +5,15 @@
  *      Author: nzhang-dev
  */
 
-#include "zorder.c"
-
-#include <time.h>
-
 #include <time.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include "tmp.c"
+
 
 #define SIZE (1<<16)
+
+#define BITS 6
 
 #define max (1 << BITS)
 
@@ -39,7 +40,7 @@ void stdClamp(uint32_t* code)
 
 void stdAdd(uint32_t* code, uint32_t code2)
 {
-	*code += code2;
+	code += code2;
 }
 
 
@@ -81,14 +82,14 @@ int main(int argc, char* argv[])
 		clock_t start = clock();
 		for (int i = 0; i < SIZE; i++)
 		{
-			stdAdd(&stdRes[i], stdRes[i]);
-			//stdClamp(&stdRes[i]);
+			//stdAdd(&stdRes[i], stdRes[i]);
+			stdClamp(&stdRes[i]);
 		}
 		clock_t mid = clock();
 		for (int i = 0; i < SIZE; i++)
 		{
-			add(&zRes[i], zRes[i]);
-			//clamp(&zRes[i]);
+			//add(&zRes[i], zRes[i]);
+			clamp(&zRes[i]);
 		}
 		clock_t end = clock();
 		stdtime += mid - start;

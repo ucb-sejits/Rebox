@@ -1,4 +1,4 @@
-from __future__ import division
+from __future__ import division, print_function
 
 __author__ = 'nzhang-dev'
 
@@ -9,7 +9,7 @@ import ctree  # forces loading of type generators. Current bug.
 
 
 from ctree.c.nodes import (ArrayDef, Array, SymbolRef, Constant, FunctionDecl, MultiNode, Assign, BitAnd, BitAndAssign,
-                           BitShR, Deref, BitNot, ArrayRef, BitOr, BitOrAssign, BitXor, Return, BitShL, Hex)
+                           BitShR, Deref, BitNot, ArrayRef, BitOr, BitOrAssign, Add, Return, BitShL, Hex)
 
 import itertools
 import math
@@ -123,50 +123,146 @@ class ZGenerator(OrderGenerator):
         )
 
     @staticmethod
-    def generate_add(ndim, bits_per_dim, ctype, name):
+    def generate_add(ndim, bits_per_dim, ctype, name, lut_scale=1):
         """
         :param ndim: number of dimensions
         :param bits_per_dim: bits per dimension
         :param ctype: ctype of data
         :param name: name of function
+        :param lut_scale: lookup table scale -> how many chunks are we looking at each time?
         :return: MultiNode with everything required, including FunctionDecl void <name> (*ctype code, ctype code2) Adds code2 into code1
         """
 
         master = MultiNode()
-        decl = FunctionDecl(name=name, params=[SymbolRef('code', sym_type=ctypes.POINTER(ctype)()),
-                                               SymbolRef('code2', sym_type=ctype())]).set_inline().set_static()
-        master.body.append(decl)
-        carry_out = SymbolRef("carry_out")
-        carry_in = SymbolRef("carry_in")
-        original = Deref(SymbolRef("code"))
-        code = SymbolRef("code_copy")
-        code2 = SymbolRef("code2")
+        block_size = lut_scale * ndim  # bits in a block
+        block_space = 2**block_size
+        carry_lookup_table = [[[0]*block_space for _ in range(block_space)] for _ in range(block_space)] # ndim^3 lookup table
+        output_lookup_table = [[[0]*block_space for _ in range(block_space)] for _ in range(block_space)]
 
-        decl.defn = [
-            Assign(SymbolRef(carry_in.name, sym_type=ctype()), Constant(0)),
-            Assign(SymbolRef(code.name, sym_type=ctype()), original),
-            Assign(original, Constant(0))
+        for chunk0, chunk1, carry in itertools.product(range(block_space), repeat=3):
+            # each chunk is responsible for block_space bits
+            binary = [[int(i) for i in bin(j)[2:].zfill(block_size)] for j in (chunk0, chunk1, carry)]
+            bit_aligned = zip(*binary)  # reorders binary so that same bits are in each sublist
+            sums = [sum(bits) for bits in bit_aligned]
+            carry_bits = [s // 2 for s in sums]
+            output_bits = [s % 2 for s in sums]
+            carry_lookup_table[chunk0][chunk1][carry] = Hex(bit_list_to_int(carry_bits))
+            output_lookup_table[chunk0][chunk1][carry] = Hex(bit_list_to_int(output_bits))
+
+        arrays = []
+        for arr in carry_lookup_table:
+            sub_arrays = []
+            for sub_arr in arr:
+                sub_arrays.append(Array(type=ctype, size=block_space, body=sub_arr))
+            arrays.append(Array(type=Array(type=ctype, size=block_space), size=block_space, body=sub_arrays))
+        carry_array = Array(type=Array(type=Array(type=ctype, size=block_space), size=block_space), size=block_space,
+                            body=arrays)
+
+        arrays = []
+        for arr in output_lookup_table:
+            sub_arrays = []
+            for sub_arr in arr:
+                sub_arrays.append(Array(type=ctype, size=block_space, body=sub_arr))
+            arrays.append(Array(type=Array(type=ctype, size=block_space), size=block_space, body=sub_arrays))
+        output_array = Array(type=Array(type=Array(type=ctype, size=block_space), size=block_space), size=block_space,
+                            body=arrays)
+
+
+        carry_table = SymbolRef("carry_table")
+        output_table = SymbolRef("output_table")
+
+        master.body += [
+            Assign(
+                ArrayRef(
+                    ArrayRef(
+                        ArrayRef(
+                            SymbolRef(
+                                carry_table.name,
+                                sym_type=ctype()
+                            ),
+                            Constant(block_space)
+                        ),
+                        Constant(block_space)
+                    ),
+                    Constant(block_space)
+                ),
+                carry_array
+            ),
+            Assign(
+                ArrayRef(
+                    ArrayRef(
+                        ArrayRef(
+                            SymbolRef(
+                                output_table.name,
+                                sym_type=ctype()
+                            ),
+                            Constant(block_space)
+                        ),
+                        Constant(block_space)
+                    ),
+                    Constant(block_space)
+                ),
+                output_array
+            )
         ]
 
-        for shift in range(0, (bits_per_dim + 1) * ndim, ndim):
-            mask = Hex((1 << ndim) - 1)
-            a = BitShR(code, Hex(shift))
-            b = BitShR(code2, Hex(shift))
-            decl.defn.append(
-                BitOrAssign(original, BitShL(BitXor(a, BitXor(b, carry_in)), Hex(shift))),
-            )
-            if shift != bits_per_dim * ndim:
-                decl.defn.append(
-                    Assign(
-                        carry_in,
-                        BitAnd(
-                            BitOr(BitAnd(carry_in, BitOr(a, b)),
-                                  BitAnd(BitNot(carry_in), BitAnd(a, b))),
-                            mask
-                        ),
-                    ),
-                )
+
+        decl = FunctionDecl(name=name,
+                            return_type=ctype(),
+                            params=[SymbolRef('code', sym_type=ctype()),
+                                               SymbolRef('code2', sym_type=ctype())]
+        ).set_inline().set_static()
+        master.body.append(decl)
+        carry_in = SymbolRef("carry_in")
+        code = SymbolRef("code")
+        out = SymbolRef("out")
+        code2 = SymbolRef("code2")
         size = ctypes.sizeof(ctype) * 8
+        decl.defn = [
+            Assign(SymbolRef(carry_in.name, sym_type=ctype()), Constant(0)),
+            Assign(SymbolRef(out.name, sym_type=ctype()), Constant(0))
+        ]
+        shifts = int(math.ceil(size/lut_scale))
+        mask = Hex(block_space - 1)
+        for shift in range(0, size, ndim*lut_scale):
+            masked_code = BitAnd(BitShR(code, Hex(shift)), mask)
+            masked_code2 = BitAnd(BitShR(code2, Hex(shift)), mask)
+            decl.defn.append(
+                BitOrAssign(out,
+                            BitShL(
+                                ArrayRef(
+                                    ArrayRef(
+                                        ArrayRef(
+                                            output_table,
+                                            masked_code
+                                        ),
+                                        masked_code2
+                                    ),
+                                    carry_in
+                                ),
+                                Hex(shift)
+                            )
+                )
+            )
+            if shift != size - 1:
+                decl.defn.append(
+                    Assign(carry_in,
+                           ArrayRef(
+                               ArrayRef(
+                                   ArrayRef(
+                                       carry_table,
+                                       masked_code
+                                   ),
+                                   masked_code2
+                               ),
+                               carry_in
+                           )
+                    )
+                )
+        decl.defn.append(
+            Return(out)
+        )
+
         return master
 
     @staticmethod
@@ -239,13 +335,92 @@ class ZGenerator(OrderGenerator):
         reduced = reduce(BitOr, things_to_or)
         final = Return(reduced)
         decl.defn = [final]
-
-
-
         return MultiNode([table_def, decl])
+
+class ZGenerator2(ZGenerator):
+
+    @staticmethod
+    def generate_add(ndim, bits_per_dim, ctype, name):
+        """
+        :param ndim: number of dimensions
+        :param bits_per_dim: bits per dimension
+        :param ctype: ctype of data
+        :param name: name of function
+        :return: MultiNode with everything required, including FunctionDecl void <name> (*ctype code, ctype code2) Adds code2 into code1
+        """
+
+        master = MultiNode()
+        decl = FunctionDecl(name=name, params=[SymbolRef('code', sym_type=ctypes.POINTER(ctype)()),
+                                               SymbolRef('code2', sym_type=ctype())])
+
+
+        size = ctypes.sizeof(ctype) * 8
+
+        original = Deref(SymbolRef("code"))
+        code = SymbolRef("code_copy")
+        code2 = SymbolRef("code2")
+        masked_code = SymbolRef("masked_code")
+        masked_code2 = SymbolRef("masked_code2")
+        repeat_mask_array = SymbolRef("repeat_mask_array")
+
+        repeat_mask = []
+        for i in range(ndim):
+            s = [0]*ndim
+            s[i] = 1
+            s *= int(size / ndim) + 1
+            s = s[(len(s) - size):]
+            repeat_mask.append(Constant(bit_list_to_int(s)))
+
+        repeat_mask.reverse()
+        repeat_mask = Array(type=ctype, size=ndim, body=repeat_mask)
+
+
+        decl.defn = [
+                Assign(SymbolRef("code_copy", ctype()), Deref(SymbolRef("code"))),
+                Assign(original, Constant(0)),
+                SymbolRef("masked_code", ctype()),
+                SymbolRef("masked_code2", ctype()),
+            ]
+
+
+        for i in range(ndim):
+            position = 2 ** i
+            # index of first element of ith dimension
+            decl.defn.extend([
+                Assign(masked_code,  # set non-X bits to 1
+                       BitOr(
+                           code,
+                           BitNot(
+                               ArrayRef(repeat_mask_array, Constant(i))
+                           )
+                       )
+                ),
+                Assign(masked_code2,  # set non-X bits to 0
+                       BitAnd(
+                           code2,
+                           ArrayRef(repeat_mask_array, Constant(i))
+                       )
+                ),
+                BitOrAssign(original,
+                            BitAnd(
+                                Add(masked_code, masked_code2),
+                                ArrayRef(repeat_mask_array,
+                                    Constant(i)
+                                )
+                            )
+                ),
+            ])
+
+        master.body = [
+            ArrayDef(SymbolRef(repeat_mask_array.name, ctype(), _static=True, _const=True),
+                     repeat_mask.size,
+                     repeat_mask),
+            decl
+        ]
+        return master
 
 if __name__ == "__main__":
     ndim = 4
     bits_per_dim = 6
     ctype = ctypes.c_uint32
-    print(ZGenerator.generate_block(ndim, bits_per_dim, ctype))
+    print(ZGenerator2.generate_block(ndim, bits_per_dim, ctype))
