@@ -3,6 +3,7 @@ from __future__ import division, print_function
 __author__ = 'nzhang-dev'
 
 import ctypes
+import sys
 
 #TODO: remove following declaration
 import ctree  # forces loading of type generators. Current bug.
@@ -424,7 +425,12 @@ class ZGenerator2(ZGenerator):
         return master
 
 if __name__ == "__main__":
+    #print(sys.argv)
     ndim = 3
+    if len(sys.argv) > 1:
+        ndim = int(sys.argv[1])
     bits_per_dim = 12
+    if len(sys.argv) > 2:
+        bits_per_dim = int(sys.argv[2])
     ctype = ctypes.c_uint64
     print(ZGenerator2.generate_block(ndim, bits_per_dim, ctype))
