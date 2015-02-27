@@ -8,7 +8,7 @@ import ctypes
 import ctree  # forces loading of type generators. Current bug.
 
 
-from ctree.c.nodes import (ArrayDef, Array, SymbolRef, Constant, FunctionDecl, MultiNode, Assign, BitAnd, BitAndAssign,
+from ctree.c.nodes import (ArrayDef, Array, SymbolRef, FunctionDecl, Constant, MultiNode, Assign, BitAnd, BitAndAssign,
                            BitShR, Deref, BitNot, ArrayRef, BitOr, BitOrAssign, Add, Return, BitShL, Hex)
 
 import itertools
@@ -180,11 +180,11 @@ class ZGenerator(OrderGenerator):
                                 carry_table.name,
                                 sym_type=ctype()
                             ),
-                            Constant(block_space)
+                            Hex(block_space)
                         ),
-                        Constant(block_space)
+                        Hex(block_space)
                     ),
-                    Constant(block_space)
+                    Hex(block_space)
                 ),
                 carry_array
             ),
@@ -196,11 +196,11 @@ class ZGenerator(OrderGenerator):
                                 output_table.name,
                                 sym_type=ctype()
                             ),
-                            Constant(block_space)
+                            Hex(block_space)
                         ),
-                        Constant(block_space)
+                        Hex(block_space)
                     ),
-                    Constant(block_space)
+                    Hex(block_space)
                 ),
                 output_array
             )
@@ -219,8 +219,8 @@ class ZGenerator(OrderGenerator):
         code2 = SymbolRef("code2")
         size = ctypes.sizeof(ctype) * 8
         decl.defn = [
-            Assign(SymbolRef(carry_in.name, sym_type=ctype()), Constant(0)),
-            Assign(SymbolRef(out.name, sym_type=ctype()), Constant(0))
+            Assign(SymbolRef(carry_in.name, sym_type=ctype()), Hex(0)),
+            Assign(SymbolRef(out.name, sym_type=ctype()), Hex(0))
         ]
         shifts = int(math.ceil(size/lut_scale))
         mask = Hex(block_space - 1)
@@ -350,15 +350,16 @@ class ZGenerator2(ZGenerator):
         """
 
         master = MultiNode()
-        decl = FunctionDecl(name=name, params=[SymbolRef('code', sym_type=ctypes.POINTER(ctype)()),
-                                               SymbolRef('code2', sym_type=ctype())])
+        decl = FunctionDecl(name=name, params=[SymbolRef('code', sym_type=ctype()),
+                                               SymbolRef('code2', sym_type=ctype())],
+                            return_type=ctype()).set_inline().set_static()
 
 
         size = ctypes.sizeof(ctype) * 8
 
-        original = Deref(SymbolRef("code"))
-        code = SymbolRef("code_copy")
+        code = SymbolRef("code")
         code2 = SymbolRef("code2")
+        ret = SymbolRef("output")
         masked_code = SymbolRef("masked_code")
         masked_code2 = SymbolRef("masked_code2")
         repeat_mask_array = SymbolRef("repeat_mask_array")
@@ -369,15 +370,14 @@ class ZGenerator2(ZGenerator):
             s[i] = 1
             s *= int(size / ndim) + 1
             s = s[(len(s) - size):]
-            repeat_mask.append(Constant(bit_list_to_int(s)))
+            repeat_mask.append(Hex(bit_list_to_int(s)))
 
         repeat_mask.reverse()
         repeat_mask = Array(type=ctype, size=ndim, body=repeat_mask)
 
 
         decl.defn = [
-                Assign(SymbolRef("code_copy", ctype()), Deref(SymbolRef("code"))),
-                Assign(original, Constant(0)),
+                Assign(SymbolRef(ret.name, ctype()), Constant(0)),
                 SymbolRef("masked_code", ctype()),
                 SymbolRef("masked_code2", ctype()),
             ]
@@ -391,25 +391,29 @@ class ZGenerator2(ZGenerator):
                        BitOr(
                            code,
                            BitNot(
-                               ArrayRef(repeat_mask_array, Constant(i))
+                               ArrayRef(repeat_mask_array, Hex(i))
                            )
                        )
                 ),
                 Assign(masked_code2,  # set non-X bits to 0
                        BitAnd(
                            code2,
-                           ArrayRef(repeat_mask_array, Constant(i))
+                           ArrayRef(repeat_mask_array, Hex(i))
                        )
                 ),
-                BitOrAssign(original,
+                BitOrAssign(ret,
                             BitAnd(
                                 Add(masked_code, masked_code2),
                                 ArrayRef(repeat_mask_array,
-                                    Constant(i)
+                                    Hex(i)
                                 )
                             )
                 ),
             ])
+
+        decl.defn.append(
+            Return(ret)
+        )
 
         master.body = [
             ArrayDef(SymbolRef(repeat_mask_array.name, ctype(), _static=True, _const=True),
@@ -420,7 +424,7 @@ class ZGenerator2(ZGenerator):
         return master
 
 if __name__ == "__main__":
-    ndim = 4
-    bits_per_dim = 6
-    ctype = ctypes.c_uint32
+    ndim = 3
+    bits_per_dim = 12
+    ctype = ctypes.c_uint64
     print(ZGenerator2.generate_block(ndim, bits_per_dim, ctype))
