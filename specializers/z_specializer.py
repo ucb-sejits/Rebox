@@ -433,4 +433,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 2:
         bits_per_dim = int(sys.argv[2])
     ctype = ctypes.c_uint64
+    if len(sys.argv) > 3:
+        ctype = getattr(ctypes, 'c_uint' + sys.argv[3])
+
     print(ZGenerator2.generate_block(ndim, bits_per_dim, ctype))
