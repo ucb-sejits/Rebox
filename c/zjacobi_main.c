@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <time.h>
 #include <stdlib.h>
+#include <omp.h>
 
 #include "zjacobi.c"
 #include "kernel.c"
@@ -21,16 +22,18 @@
 int main(int argc, char* argv[])
 {
 	printf("Allocating problem\n");
-	uint64_t array_size = 1 << 9;
+	uint64_t array_size = 9;
 	uint32_t iterations = 1;
-	if (argc > 1)
-	{
-		array_size = atoi((const char*) argv[1]);
-	}
-	if (argc > 2)
-	{
-		iterations = atoi((const char*) argv[2]);
-	}
+//	if (argc > 1)
+//	{
+//		array_size = atoi((const char*) argv[1]);
+//	}
+//	if (argc > 2)
+//	{
+//		iterations = atoi((const char*) argv[2]);
+//	}
+	int bits = array_size;
+	array_size = 1 << array_size;
 	uint64_t actual_size = 1;
 	for(int i = 0; i < NDIM; i++)
 	{
@@ -71,26 +74,54 @@ int main(int argc, char* argv[])
 		}
 	}
 	printf("Allocation succeeded\n");
-	clock_t start = clock();
+	uint64_t num_threads_tmp = omp_get_max_threads();
+	uint64_t num_threads = 1;
+	uint64_t parallel_bits = 0;
+	while (num_threads < num_threads_tmp)
+	{
+		num_threads <<= 1;
+		parallel_bits++;
+	}
+	if (num_threads > num_threads_tmp)
+	{
+		num_threads >>= 1;
+		parallel_bits--;
+	}
+	printf("Found %d threads, %d parallel bits\n", num_threads, parallel_bits);
+	double start = omp_get_wtime();
+	//printf("Start time: %f", start/CLOCKS_PER_SEC);
 	uint32_t neighborhood[2*NDIM];
 	uint64_t delta;
 	uint64_t ind;
+
 	for (int iter = 0; iter < iterations; iter++)
 	{
-		for (uint64_t index = 0; index < actual_size; index++)
+		uint64_t partition;
+		#pragma omp parallel for private(partition)
+		for (partition = 0; partition < num_threads; partition++)
 		{
-			for (int neighborhood_index = 0; neighborhood_index < 2*NDIM; neighborhood_index++)
+			uint64_t partition_mask = partition << bits;
+			for (uint64_t i = 0; i < (actual_size >> parallel_bits); i++)
 			{
-				delta = neighborhood_encoded_deltas[neighborhood_index];
-				ind = add(index, delta);
-				clamp(&ind);
-				neighborhood[neighborhood_index] = data[ind];
+				uint64_t index = i | partition_mask;
+				for (int neighborhood_index = 0; neighborhood_index < 2*NDIM; neighborhood_index++)
+				{
+					delta = neighborhood_encoded_deltas[neighborhood_index];
+					ind = add(index, delta);
+					clamp(&ind);
+					if(ind >= actual_size)
+					{
+						printf("Failed at %d\t; actual size: %d\n", ind, actual_size);
+					}
+					neighborhood[neighborhood_index] = data[ind];
+				}
+				kernel(neighborhood, &out[index]);
 			}
-			kernel(neighborhood, &out[index]);
 		}
 	}
-	clock_t end = clock();
-	float elapsed = ((float) (end - start)) / CLOCKS_PER_SEC;
+	double end = omp_get_wtime();
+	//printf("End time: %f", end/CLOCKS_PER_SEC);
+	float elapsed = end - start;
 	printf("Total time: %f\n", elapsed);
 	return 0;
 }

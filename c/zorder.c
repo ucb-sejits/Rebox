@@ -1,24 +1,45 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "tmp.c"
+#include <time.h>
+#include "zjacobi.c"
 
 
 int main(int argc, const char* argv[])
 {
-	uint32_t w = 3;
-	uint32_t x = 5;
-	uint32_t y = 7;
-	uint32_t z = 21;
-	uint32_t z2 = 14;
-	uint32_t i1[] = {w, x, y, z};
-	uint32_t i2[] = {w, x, y, z2};
-	uint32_t i3[] = {2*w, 2*x, 2*y, z+z2};
-	uint32_t c1 = encode(i1);
-	uint32_t c2 = encode(i2);
-	uint32_t c3 = add(c1, c2);
-	clamp(&c3);
-	printf("c1: %u\tc2: %u\n", c1, c2);
-	printf("Sum: %d\n", c3);
-	printf("Proper: %d\n", encode(i3));
+	int mod = 6;
+	clock_t start;
+	clock_t total;
+	srand(time(NULL));
+	for (int i = 0; i < 1; i++)
+	{
+		uint64_t x = (rand() % (1 << mod)) - (1 << (mod - 1));
+		uint64_t y = (rand() % (1 << mod)) - (1 << (mod - 1));
+		uint64_t z = (rand() % (1 << mod)) - (1 << (mod - 1));
+		uint64_t z2 = rand() % (1 << mod);
+		uint64_t i1[] = {x, y, z};
+		uint64_t i2[] = {x, y, z2};
+		uint64_t i3[] = {2*x, 2*y, z+z2};
+//		uint64_t i1[] = {1, 2, 3};
+//		uint64_t i2[] = {-4, 5, -6};
+//		uint64_t i3[] = {-3, 7, -3};
+		start = clock();
+		uint64_t c1 = encode(i1);
+		uint64_t c2 = encode(i2);
+		clamp(&c1);
+		clamp(&c2);
+		uint64_t c3 = add(c1, c2);
+		uint64_t proper = encode(i3);
+		clamp(&proper);
+		clamp(&c3);
+
+		total += clock() - start;
+		if(c3 != proper)
+		{
+			printf("C1: %d\tC2: %d\n", c1, c2);
+			printf("x: %d y:%d z:%d z2:%d\n", x, y, z, z2);
+			printf("Expected: %d \tActual: %d\n", proper, c3);
+		}
+	}
+	printf("Total time: %f\n", ((float) total)/CLOCKS_PER_SEC);
 }
