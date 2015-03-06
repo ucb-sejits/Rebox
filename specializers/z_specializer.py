@@ -47,7 +47,7 @@ class ZGenerator(OrderGenerator):
             array_type = ctypes.POINTER(ctype)
             return Array(type=array_type, size=2**ndim, body=masks)
 
-        decl = FunctionDecl(name=name, params=[SymbolRef('code', sym_type=ctypes.POINTER(ctype)())]).set_inline().set_static()
+        decl = FunctionDecl(name=name, params=[SymbolRef('code', sym_type=ctypes.POINTER(ctype)())])
         code = SymbolRef('code')
         mask = SymbolRef("mask")
         size = ctypes.sizeof(ctype) * 8  # 8 bits/byte
@@ -103,14 +103,14 @@ class ZGenerator(OrderGenerator):
 
         underflow_array = _generate_repeat_mask(ndim, size, ctype)
         underflow_mask_def = ArrayDef(
-            SymbolRef(underflow_mask.name, ctype(), _static=True, _const=True),
+            SymbolRef(underflow_mask.name, ctype(), _const=True),
             underflow_array.size,
             underflow_array
         )
 
         overflow_array = _generate_repeat_mask(ndim, ndim * bits_per_dim, ctype)
         overflow_mask_def = ArrayDef(
-            SymbolRef(overflow_mask.name, ctype(), _static=True, _const=True),
+            SymbolRef(overflow_mask.name, ctype(), _const=True),
             overflow_array.size,
             overflow_array
         )
@@ -212,7 +212,7 @@ class ZGenerator(OrderGenerator):
                             return_type=ctype(),
                             params=[SymbolRef('code', sym_type=ctype()),
                                                SymbolRef('code2', sym_type=ctype())]
-        ).set_inline().set_static()
+        )
         master.body.append(decl)
         carry_in = SymbolRef("carry_in")
         code = SymbolRef("code")
@@ -294,7 +294,7 @@ class ZGenerator(OrderGenerator):
 
         table_def = ArrayDef(
             ArrayRef(
-                SymbolRef("lookup_table", sym_type=ctype(), _const=True, _static=True),
+                SymbolRef("lookup_table", sym_type=ctype(), _const=True),
                 Hex(ndim)
             ),
             table_size,
@@ -307,7 +307,7 @@ class ZGenerator(OrderGenerator):
         decl = FunctionDecl(name=name,
                             return_type=ctype(),
                             params=[SymbolRef('indices', sym_type=ctypes.POINTER(ctype)())],
-        ).set_inline().set_static()
+        )
 
         indices = SymbolRef("indices")
 
@@ -354,7 +354,7 @@ class ZGenerator2(ZGenerator):
         master = MultiNode()
         decl = FunctionDecl(name=name, params=[SymbolRef('code', sym_type=ctype()),
                                                SymbolRef('code2', sym_type=ctype())],
-                            return_type=ctype()).set_inline().set_static()
+                            return_type=ctype())
 
 
         size = ctypes.sizeof(ctype) * 8
@@ -418,7 +418,7 @@ class ZGenerator2(ZGenerator):
         )
 
         master.body = [
-            ArrayDef(SymbolRef(repeat_mask_array.name, ctype(), _static=True, _const=True),
+            ArrayDef(SymbolRef(repeat_mask_array.name, ctype(), _const=True),
                      repeat_mask.size,
                      repeat_mask),
             decl
@@ -440,7 +440,7 @@ class ZGenerator3(ZGenerator):
         master = MultiNode()
         decl = FunctionDecl(name=name, params=[SymbolRef('code', sym_type=ctype()),
                                                SymbolRef('code2', sym_type=ctype())],
-                            return_type=ctype()).set_inline().set_static()
+                            return_type=ctype())
 
 
         size = ctypes.sizeof(ctype) * 8

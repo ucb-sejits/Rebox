@@ -51,11 +51,17 @@ int main(int argc, char* argv[])
 	int64_t neighborhood_deltas[2*NDIM][NDIM] = {{-1, 0, 0}, {0, -1, 0}, {0, 0, -1}, {0, 0, 1}, {0, 1, 0}, {1, 0, 0}};
 	printf("allocating delta matrix\n");
 	uint64_t neighborhood_encoded_deltas[2*NDIM];
+
 	printf("Reindexing\n");
 	for (uint64_t i = 0; i < 2*NDIM; i++)
 	{
 		neighborhood_encoded_deltas[i] = encode(neighborhood_deltas[i]);
 	}
+	for (int i = 0; i < 2*NDIM; i++)
+	{
+		printf("%d\t", neighborhood_encoded_deltas[i]);
+	}
+	printf("\n");
 	printf("Finished Reindexing\n");
 	for (uint32_t x = 0; x < array_size; x++)
 	{
@@ -75,6 +81,7 @@ int main(int argc, char* argv[])
 	}
 	printf("Allocation succeeded\n");
 	uint64_t num_threads_tmp = omp_get_max_threads();
+//	num_threads_tmp = 2;
 	uint64_t num_threads = 1;
 	uint64_t parallel_bits = 0;
 	while (num_threads < num_threads_tmp)
@@ -90,21 +97,28 @@ int main(int argc, char* argv[])
 	printf("Found %d threads, %d parallel bits\n", num_threads, parallel_bits);
 	double start = omp_get_wtime();
 	//printf("Start time: %f", start/CLOCKS_PER_SEC);
-	uint32_t neighborhood[2*NDIM];
 	uint64_t delta;
 	uint64_t ind;
 
 	for (int iter = 0; iter < iterations; iter++)
 	{
+		printf("Starting iteration %d\n", iter);
 		uint64_t partition;
-		#pragma omp parallel for private(partition)
+		uint32_t* neighborhood;
+		//private(partition) private(neighborhood) shared(data) shared(out) shared(neighborhood_encoded_deltas)
+		uint64_t i;
+		int neighborhood_index;
+		#pragma omp parallel for private(partition, neighborhood, index, ind, i) shared(data, out, neighborhood_encoded_deltas)
 		for (partition = 0; partition < num_threads; partition++)
 		{
-			uint64_t partition_mask = partition << bits;
-			for (uint64_t i = 0; i < (actual_size >> parallel_bits); i++)
+			uint32_t neighborhood[2*NDIM];
+			uint64_t partition_mask = partition << ((bits*NDIM) - parallel_bits);
+			for (i = 0; i < (actual_size >> parallel_bits); i++)
 			{
+
 				uint64_t index = i | partition_mask;
-				for (int neighborhood_index = 0; neighborhood_index < 2*NDIM; neighborhood_index++)
+				//printf("i: %u\tpartition:%u\tindex:%d\n", i, partition, index);
+				for (neighborhood_index = 0; neighborhood_index < 2*NDIM; neighborhood_index++)
 				{
 					delta = neighborhood_encoded_deltas[neighborhood_index];
 					ind = add(index, delta);
@@ -123,5 +137,7 @@ int main(int argc, char* argv[])
 	//printf("End time: %f", end/CLOCKS_PER_SEC);
 	float elapsed = end - start;
 	printf("Total time: %f\n", elapsed);
+	free(data);
+	free(out);
 	return 0;
 }
