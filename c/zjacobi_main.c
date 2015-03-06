@@ -108,7 +108,8 @@ int main(int argc, char* argv[])
 		//private(partition) private(neighborhood) shared(data) shared(out) shared(neighborhood_encoded_deltas)
 		uint64_t i;
 		int neighborhood_index;
-		#pragma omp parallel for private(partition, neighborhood, index, ind, i) shared(data, out, neighborhood_encoded_deltas)
+		uint64_t index;
+		#pragma omp parallel for private(partition, neighborhood, index, ind, i)
 		for (partition = 0; partition < num_threads; partition++)
 		{
 			uint32_t neighborhood[2*NDIM];
@@ -116,7 +117,7 @@ int main(int argc, char* argv[])
 			for (i = 0; i < (actual_size >> parallel_bits); i++)
 			{
 
-				uint64_t index = i | partition_mask;
+				index = i | partition_mask;
 				//printf("i: %u\tpartition:%u\tindex:%d\n", i, partition, index);
 				for (neighborhood_index = 0; neighborhood_index < 2*NDIM; neighborhood_index++)
 				{
