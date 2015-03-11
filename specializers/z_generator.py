@@ -10,20 +10,20 @@ import ctree  # forces loading of type generators. Current bug.
 
 
 from ctree.c.nodes import (ArrayDef, Array, SymbolRef, FunctionDecl, Constant, MultiNode, Assign, BitAnd, BitAndAssign,
-                           BitShR, Deref, BitNot, ArrayRef, BitOr, BitOrAssign, Add, Return, BitShL, Hex)
+                           BitShR, Deref, BitNot, ArrayRef, BitOr, BitOrAssign, Add, Return, BitShL, Hex, Ref)
+
+from macros import prefetch
 
 import itertools
 import math
 from functools import reduce
 from util import bit_list_to_int
 
-from specializer import OrderGenerator
+from order import OrderGenerator
+
 
 class ZGenerator(OrderGenerator):
-
-
-    @staticmethod
-    def generate_clamp(ndim, bits_per_dim, ctype, name):
+    def generate_clamp(self, ndim, bits_per_dim, ctype, name):
         """
         :param ndim: number of dimensions
         :param bits_per_dim: bits per dimension
@@ -54,8 +54,8 @@ class ZGenerator(OrderGenerator):
         underflow_start = Hex(size - size%ndim - ndim)
         overflow_start = Hex(ndim * bits_per_dim)
         overflow_end = Hex(underflow_start.value - 1)
-        underflow_mask = SymbolRef("underflow_mask")
-        overflow_mask = SymbolRef("overflow_mask")
+        underflow_mask = SymbolRef(name + "_underflow_mask")
+        overflow_mask = SymbolRef(name + "_overflow_mask")
         overflow_bits = overflow_end.value - overflow_start.value + 1
         window_mask = Hex(2 ** ndim - 1)  # ndim 1's
         overflow_window_mask = Hex(2 ** (overflow_end.value - overflow_start.value + 1) - 1)
@@ -114,17 +114,10 @@ class ZGenerator(OrderGenerator):
             overflow_array.size,
             overflow_array
         )
+        return OrderGenerator.GeneratedResult(decl, [underflow_mask_def, overflow_mask_def])
 
-        return MultiNode(
-            [
-                underflow_mask_def,
-                overflow_mask_def,
-                decl
-            ]
-        )
 
-    @staticmethod
-    def generate_add(ndim, bits_per_dim, ctype, name, lut_scale=1):
+    def generate_add(self, ndim, bits_per_dim, ctype, name, lut_scale=1):
         """
         :param ndim: number of dimensions
         :param bits_per_dim: bits per dimension
@@ -169,43 +162,9 @@ class ZGenerator(OrderGenerator):
                             body=arrays)
 
 
-        carry_table = SymbolRef("carry_table")
-        output_table = SymbolRef("output_table")
+        carry_table = SymbolRef(name + "_carry_table")
+        output_table = SymbolRef(name + "_output_table")
 
-        master.body += [
-            Assign(
-                ArrayRef(
-                    ArrayRef(
-                        ArrayRef(
-                            SymbolRef(
-                                carry_table.name,
-                                sym_type=ctype()
-                            ),
-                            Hex(block_space)
-                        ),
-                        Hex(block_space)
-                    ),
-                    Hex(block_space)
-                ),
-                carry_array
-            ),
-            Assign(
-                ArrayRef(
-                    ArrayRef(
-                        ArrayRef(
-                            SymbolRef(
-                                output_table.name,
-                                sym_type=ctype()
-                            ),
-                            Hex(block_space)
-                        ),
-                        Hex(block_space)
-                    ),
-                    Hex(block_space)
-                ),
-                output_array
-            )
-        ]
 
 
         decl = FunctionDecl(name=name,
@@ -264,10 +223,42 @@ class ZGenerator(OrderGenerator):
             Return(out)
         )
 
-        return master
+        return OrderGenerator.GeneratedResult(decl, [
+            Assign(
+                ArrayRef(
+                    ArrayRef(
+                        ArrayRef(
+                            SymbolRef(
+                                carry_table.name,
+                                sym_type=ctype()
+                            ),
+                            Hex(block_space)
+                        ),
+                        Hex(block_space)
+                    ),
+                    Hex(block_space)
+                ),
+                carry_array
+            ),
+            Assign(
+                ArrayRef(
+                    ArrayRef(
+                        ArrayRef(
+                            SymbolRef(
+                                output_table.name,
+                                sym_type=ctype()
+                            ),
+                            Hex(block_space)
+                        ),
+                        Hex(block_space)
+                    ),
+                    Hex(block_space)
+                ),
+                output_array
+            )
+        ])
 
-    @staticmethod
-    def generate_encode(ndim, bits_per_dim, ctype, name, block_size=8):
+    def generate_encode(self, ndim, bits_per_dim, ctype, name, block_size=0):
         """
         :param ndim: number of dimensions
         :param bits_per_dim: bits per dimension
@@ -276,7 +267,7 @@ class ZGenerator(OrderGenerator):
         :param block_size: log2 of the number of elements in the lookup table
         :return: MultiNode with everything required, including FunctionDecl void <name> (*ctype indices) -> Z order index
         """
-        block_size = max(block_size, bits_per_dim)
+        block_size = max(block_size, ndim)
         block_size -= block_size % ndim
         table_size = 2**block_size
         tables = Array(type=Array(type=ctype(), size=ndim), size=table_size)
@@ -292,9 +283,10 @@ class ZGenerator(OrderGenerator):
             arr = Array(type=ctype(), size=table_size, body=shifted_table)
             tables.body.append(arr)
 
+        lookup_table = SymbolRef(name + "_lookup_table")
         table_def = ArrayDef(
             ArrayRef(
-                SymbolRef("lookup_table", sym_type=ctype(), _const=True),
+                SymbolRef(lookup_table.name, sym_type=ctype(), _const=True),
                 Hex(ndim)
             ),
             table_size,
@@ -310,8 +302,6 @@ class ZGenerator(OrderGenerator):
         )
 
         indices = SymbolRef("indices")
-
-        lookup_table = SymbolRef("lookup_table")
         window = Hex(table_size - 1)
 
         num_windows = int(math.ceil(bits_per_dim / block_size))  # number of shifts we need to do
@@ -337,12 +327,11 @@ class ZGenerator(OrderGenerator):
         reduced = reduce(BitOr, things_to_or)
         final = Return(reduced)
         decl.defn = [final]
-        return MultiNode([table_def, decl])
+        return OrderGenerator.GeneratedResult(decl, [table_def])
 
 class ZGenerator2(ZGenerator):
 
-    @staticmethod
-    def generate_add(ndim, bits_per_dim, ctype, name):
+    def generate_add(self, ndim, bits_per_dim, ctype, name):
         """
         :param ndim: number of dimensions
         :param bits_per_dim: bits per dimension
@@ -364,7 +353,7 @@ class ZGenerator2(ZGenerator):
         ret = SymbolRef("output")
         masked_code = SymbolRef("masked_code")
         masked_code2 = SymbolRef("masked_code2")
-        repeat_mask_array = SymbolRef("repeat_mask_array")
+        repeat_mask_array = SymbolRef(name + "_repeat_mask_array")
 
         repeat_mask = []
         for i in range(ndim):
@@ -416,19 +405,13 @@ class ZGenerator2(ZGenerator):
         decl.defn.append(
             Return(ret)
         )
-
-        master.body = [
-            ArrayDef(SymbolRef(repeat_mask_array.name, ctype(), _const=True),
+        return OrderGenerator.GeneratedResult(decl, [ArrayDef(SymbolRef(repeat_mask_array.name, ctype(), _const=True),
                      repeat_mask.size,
-                     repeat_mask),
-            decl
-        ]
-        return master
+                     repeat_mask)])
 
 class ZGenerator3(ZGenerator):
 
-    @staticmethod
-    def generate_add(ndim, bits_per_dim, ctype, name):
+    def generate_add(self, ndim, bits_per_dim, ctype, name):
         """
         :param ndim: number of dimensions
         :param bits_per_dim: bits per dimension
@@ -447,7 +430,6 @@ class ZGenerator3(ZGenerator):
 
         code = SymbolRef("code")
         code2 = SymbolRef("code2")
-        ret = SymbolRef("output")
 
         overflow = ndim * ((size // bits_per_dim) + 1) - size
 
@@ -469,10 +451,7 @@ class ZGenerator3(ZGenerator):
             Return(reduce(BitOr, to_be_combined))
         )
 
-        master.body = [
-            decl
-        ]
-        return master
+        return OrderGenerator.GeneratedResult(decl, [])
 
 if __name__ == "__main__":
     #print(sys.argv)
@@ -486,4 +465,4 @@ if __name__ == "__main__":
     if len(sys.argv) > 3:
         ctype = getattr(ctypes, 'c_uint' + sys.argv[3])
 
-    print(ZGenerator2.generate_block(ndim, bits_per_dim, ctype))
+    print(ZGenerator3().generate_block(ndim, bits_per_dim, ctype))

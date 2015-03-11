@@ -19,3 +19,4 @@ def decompose(z_order_code, ndim):
         dimension_shift += 1
 
     return result
+
