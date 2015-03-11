@@ -24,14 +24,14 @@ int main(int argc, char* argv[])
 	printf("Allocating problem\n");
 	uint64_t array_size = 9;
 	uint32_t iterations = 1;
-//	if (argc > 1)
-//	{
-//		array_size = atoi((const char*) argv[1]);
-//	}
-//	if (argc > 2)
-//	{
-//		iterations = atoi((const char*) argv[2]);
-//	}
+	if (argc > 1)
+	{
+		array_size = atoi((const char*) argv[1]);
+	}
+	if (argc > 2)
+	{
+		iterations = atoi((const char*) argv[2]);
+	}
 	int bits = array_size;
 	array_size = 1 << array_size;
 	uint64_t actual_size = 1;
