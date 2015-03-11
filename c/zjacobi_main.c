@@ -24,6 +24,11 @@ int main(int argc, char* argv[])
 	printf("Allocating problem\n");
 	uint64_t array_size = 9;
 	uint32_t iterations = 1;
+	uint64_t num_threads_tmp = omp_get_max_threads();
+//	num_threads_tmp = 2;
+	uint64_t num_threads = 1;
+	uint64_t parallel_bits = 0;
+
 	if (argc > 1)
 	{
 		array_size = atoi((const char*) argv[1]);
@@ -31,6 +36,21 @@ int main(int argc, char* argv[])
 	if (argc > 2)
 	{
 		iterations = atoi((const char*) argv[2]);
+	}
+	if (argc > 3)
+	{
+		num_threads_tmp = atoi((const char*) argv[3]);
+	}
+
+	while (num_threads < num_threads_tmp)
+	{
+		num_threads <<= 1;
+		parallel_bits++;
+	}
+	if (num_threads > num_threads_tmp)
+	{
+		num_threads >>= 1;
+		parallel_bits--;
 	}
 	int bits = array_size;
 	array_size = 1 << array_size;
@@ -80,20 +100,7 @@ int main(int argc, char* argv[])
 		}
 	}
 	printf("Allocation succeeded\n");
-	uint64_t num_threads_tmp = omp_get_max_threads();
-//	num_threads_tmp = 2;
-	uint64_t num_threads = 1;
-	uint64_t parallel_bits = 0;
-	while (num_threads < num_threads_tmp)
-	{
-		num_threads <<= 1;
-		parallel_bits++;
-	}
-	if (num_threads > num_threads_tmp)
-	{
-		num_threads >>= 1;
-		parallel_bits--;
-	}
+
 	printf("Found %d threads, %d parallel bits\n", num_threads, parallel_bits);
 	double start = omp_get_wtime();
 	//printf("Start time: %f", start/CLOCKS_PER_SEC);
