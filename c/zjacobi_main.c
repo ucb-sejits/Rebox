@@ -107,7 +107,7 @@ int main(int argc, char* argv[])
 	{
 		printf("Starting iteration %d\n", iter);
 		//private(partition) private(neighborhood) shared(data) shared(out) shared(neighborhood_encoded_deltas)
-		#pragma omp parallel for ordered num_threads(num_threads)
+		#pragma omp parallel for num_threads(num_threads)
 
 		for (uint64_t partition = 0; partition < num_threads; partition++)
 		{
