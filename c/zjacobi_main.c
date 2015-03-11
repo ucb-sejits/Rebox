@@ -126,6 +126,8 @@ int main(int argc, char* argv[])
 
 				index = i | partition_mask;
 				//printf("i: %u\tpartition:%u\tindex:%d\n", i, partition, index);
+				#pragma omp critical
+				{
 				for (neighborhood_index = 0; neighborhood_index < 2*NDIM; neighborhood_index++)
 				{
 					delta = neighborhood_encoded_deltas[neighborhood_index];
@@ -138,7 +140,9 @@ int main(int argc, char* argv[])
 					neighborhood[neighborhood_index] = data[ind];
 				}
 				kernel(neighborhood, &out[index]);
+				}
 			}
+
 		}
 	}
 	double end = omp_get_wtime();
