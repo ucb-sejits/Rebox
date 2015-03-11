@@ -17,8 +17,6 @@
 
 #define NDIM 3
 
-
-
 int main(int argc, char* argv[])
 {
 	printf("Allocating problem\n");
@@ -104,39 +102,37 @@ int main(int argc, char* argv[])
 	printf("Found %d threads, %d parallel bits\n", num_threads, parallel_bits);
 	double start = omp_get_wtime();
 	//printf("Start time: %f", start/CLOCKS_PER_SEC);
-	uint64_t delta;
-	uint64_t ind;
 
 	for (int iter = 0; iter < iterations; iter++)
 	{
 		printf("Starting iteration %d\n", iter);
-		uint64_t partition;
-		uint32_t* neighborhood;
 		//private(partition) private(neighborhood) shared(data) shared(out) shared(neighborhood_encoded_deltas)
-		uint64_t i;
-		int neighborhood_index;
-		uint64_t index;
-		#pragma omp parallel for private(partition, neighborhood, index, ind, i)
-		for (partition = 0; partition < num_threads; partition++)
+		#pragma omp parallel for ordered num_threads(num_threads)
+
+		for (uint64_t partition = 0; partition < num_threads; partition++)
 		{
 			uint32_t neighborhood[2*NDIM];
 			uint64_t partition_mask = partition << ((bits*NDIM) - parallel_bits);
-			for (i = 0; i < (actual_size >> parallel_bits); i++)
+			for (uint64_t i = 0; i < (actual_size >> parallel_bits); i++)
 			{
 
-				index = i | partition_mask;
+				uint64_t index = i | partition_mask;
 				//printf("i: %u\tpartition:%u\tindex:%d\n", i, partition, index);
-				#pragma omp critical
+				//#pragma omp critical
 				{
-				for (neighborhood_index = 0; neighborhood_index < 2*NDIM; neighborhood_index++)
+				for (uint64_t neighborhood_index = 0; neighborhood_index < 2*NDIM; neighborhood_index++)
 				{
-					delta = neighborhood_encoded_deltas[neighborhood_index];
-					ind = add(index, delta);
+					//printf("e");
+					//fflush(stdout);
+					uint64_t delta = neighborhood_encoded_deltas[neighborhood_index];
+					uint64_t ind = add(index, delta);
 					clamp(&ind);
+					//printf("p");
+					//fflush(stdout);
 					neighborhood[neighborhood_index] = data[ind];
 				}
 				}
-				kernel(neighborhood, &out[index]);
+				out[index] = kernel(neighborhood);
 
 			}
 
