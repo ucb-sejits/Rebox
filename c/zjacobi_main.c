@@ -133,14 +133,11 @@ int main(int argc, char* argv[])
 					delta = neighborhood_encoded_deltas[neighborhood_index];
 					ind = add(index, delta);
 					clamp(&ind);
-					if(ind >= actual_size)
-					{
-						printf("Failed at %d\t; actual size: %d\n", ind, actual_size);
-					}
 					neighborhood[neighborhood_index] = data[ind];
 				}
-				kernel(neighborhood, &out[index]);
 				}
+				kernel(neighborhood, &out[index]);
+
 			}
 
 		}
