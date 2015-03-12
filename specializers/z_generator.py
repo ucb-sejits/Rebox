@@ -67,7 +67,7 @@ class ZGenerator(OrderGenerator):
                     ArrayRef(
                         underflow_mask,
                         BitAnd(
-                            BitShR(Deref(code), overflow_start),
+                            BitShR(Deref(code), underflow_start),
                             window_mask
                         )
                     )
@@ -267,8 +267,10 @@ class ZGenerator(OrderGenerator):
         :param block_size: log2 of the number of elements in the lookup table
         :return: MultiNode with everything required, including FunctionDecl void <name> (*ctype indices) -> Z order index
         """
-        block_size = max(block_size, ndim)
-        block_size -= block_size % ndim
+        size = ctypes.sizeof(ctype)*8  # size of datatype in bits
+
+        block_size = max(block_size, ndim)  # a block has to at least hold 1 set of indices at a time
+        block_size -= block_size % ndim  # makes block_size a multiple of ndim
         table_size = 2**block_size
         tables = Array(type=Array(type=ctype(), size=ndim), size=table_size)
         base_table = []
@@ -304,7 +306,7 @@ class ZGenerator(OrderGenerator):
         indices = SymbolRef("indices")
         window = Hex(table_size - 1)
 
-        num_windows = int(math.ceil(bits_per_dim / block_size))  # number of shifts we need to do
+        num_windows = int(math.ceil(size / block_size))  # number of shifts we need to do
         things_to_or = []  # set of masks to OR together to obtain final
         for window_num in range(num_windows):  # handling 1 dimension at a time to try and preserve cache
             group = []
@@ -431,12 +433,13 @@ class ZGenerator3(ZGenerator):
         code = SymbolRef("code")
         code2 = SymbolRef("code2")
 
-        overflow = ndim * ((size // bits_per_dim) + 1) - size
+        repeat = int(math.ceil(size / ndim))
+        overflow = repeat*ndim - size
 
-        dim_mask_str = "1".rjust(ndim, "0")*((size // bits_per_dim) + 1)
+        dim_mask_str = "1".rjust(ndim, "0")*repeat
         dim_mask = Hex(int(dim_mask_str[overflow:], 2))
 
-        inverted_mask_str = "0".rjust(ndim, "1")*((size // bits_per_dim) + 1)
+        inverted_mask_str = "0".rjust(ndim, "1")*repeat
         inverted_mask = Hex(int(inverted_mask_str[overflow:], 2))
 
         to_be_combined = []

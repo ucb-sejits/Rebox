@@ -17,6 +17,8 @@
 
 #define NDIM 3
 
+#define stdEncode(x, y, z) ((x) * array_size * array_size + (y) * array_size + (z))
+
 int main(int argc, char* argv[])
 {
 	printf("Allocating problem\n");
@@ -66,36 +68,26 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 	printf("Malloc succeeded\n");
-	int64_t neighborhood_deltas[2*NDIM][NDIM] = {{-1, 0, 0}, {0, -1, 0}, {0, 0, -1}, {0, 0, 1}, {0, 1, 0}, {1, 0, 0}};
+	int64_t neighborhood_deltas[NEIGHBORS][NDIM] = {{-1, -1, -1}, {-1, -1, 0}, {-1, -1, 1}, {-1, 0, -1}, {-1, 0, 0}, {-1, 0, 1}, {-1, 1, -1}, {-1, 1, 0}, {-1, 1, 1}, {0, -1, -1}, {0, -1, 0}, {0, -1, 1}, {0, 0, -1}, {0, 0, 0}, {0, 0, 1}, {0, 1, -1}, {0, 1, 0}, {0, 1, 1}, {1, -1, -1}, {1, -1, 0}, {1, -1, 1}, {1, 0, -1}, {1, 0, 0}, {1, 0, 1}, {1, 1, -1}, {1, 1, 0}, {1, 1, 1}};
 	printf("allocating delta matrix\n");
-	uint64_t neighborhood_encoded_deltas[2*NDIM];
+	uint64_t neighborhood_encoded_deltas[NEIGHBORS];
 
 	printf("Reindexing\n");
-	for (uint64_t i = 0; i < 2*NDIM; i++)
+	for (uint64_t i = 0; i < NEIGHBORS; i++)
 	{
 		neighborhood_encoded_deltas[i] = encode(neighborhood_deltas[i]);
 	}
-	for (int i = 0; i < 2*NDIM; i++)
+	for (int i = 0; i < NEIGHBORS; i++)
 	{
 		printf("%d\t", neighborhood_encoded_deltas[i]);
 	}
 	printf("\n");
 	printf("Finished Reindexing\n");
-	for (uint32_t x = 0; x < array_size; x++)
+	for(uint32_t z = 0; z < array_size; z++)
 	{
-		for(uint32_t y = 0; y < array_size; y++)
-		{
-			for(uint32_t z = 0; z < array_size; z++)
-			{
-				uint64_t index[] = {x, y, z};
-				uint64_t addr = encode(index);
-				data[addr] = 0;
-				if (x == 0 || x == array_size - 1) //left and right sheets
-				{
-					data[addr] = 300; // arbitrary value
-				}
-			}
-		}
+		uint64_t index[] = {0, 0, z};
+		uint64_t addr = encode(index);
+		data[addr] = 729;
 	}
 	printf("Allocation succeeded\n");
 
@@ -108,10 +100,9 @@ int main(int argc, char* argv[])
 		printf("Starting iteration %d\n", iter);
 		//private(partition) private(neighborhood) shared(data) shared(out) shared(neighborhood_encoded_deltas)
 		#pragma omp parallel for num_threads(num_threads)
-
 		for (uint64_t partition = 0; partition < num_threads; partition++)
 		{
-			uint32_t neighborhood[2*NDIM];
+			uint32_t neighborhood[NEIGHBORS];
 			uint64_t partition_mask = partition << ((bits*NDIM) - parallel_bits);
 			for (uint64_t i = 0; i < (actual_size >> parallel_bits); i++)
 			{
@@ -120,15 +111,14 @@ int main(int argc, char* argv[])
 				//printf("i: %u\tpartition:%u\tindex:%d\n", i, partition, index);
 				//#pragma omp critical
 				{
-				for (uint64_t neighborhood_index = 0; neighborhood_index < 2*NDIM; neighborhood_index++)
+				for (uint64_t neighborhood_index = 0; neighborhood_index < NEIGHBORS; neighborhood_index++)
 				{
-					//printf("e");
-					//fflush(stdout);
 					uint64_t delta = neighborhood_encoded_deltas[neighborhood_index];
+//					printf("Index: %u\t", index);
 					uint64_t ind = add(index, delta);
+//					printf("ind: %u\t", ind);
 					clamp(&ind);
-					//printf("p");
-					//fflush(stdout);
+//					printf("code: %u\n", ind);
 					neighborhood[neighborhood_index] = data[ind];
 				}
 				}
@@ -139,9 +129,24 @@ int main(int argc, char* argv[])
 		}
 	}
 	double end = omp_get_wtime();
-	//printf("End time: %f", end/CLOCKS_PER_SEC);
+
+	//reusing Data as output, reordered
+	for (uint32_t x = 0; x < array_size; x++)
+	{
+		for(uint32_t y = 0; y < array_size; y++)
+		{
+			for(uint32_t z = 0; z < array_size; z++)
+			{
+				uint64_t code[] = {x, y, z};
+				uint64_t encoded = encode(code);
+				data[stdEncode(x, y, z)] = out[encoded];
+			}
+		}
+	}
+
 	float elapsed = end - start;
 	printf("Total time: %f\n", elapsed);
+	dump(data, array_size * 2);
 	free(data);
 	free(out);
 	return 0;

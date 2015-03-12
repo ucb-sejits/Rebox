@@ -7,7 +7,7 @@
 
 int main(int argc, const char* argv[])
 {
-	uint64_t iterations = 5;
+	uint64_t iterations = 0;
 	if (argc > 1)
 	{
 		iterations = atoi(argv[1]);
@@ -17,10 +17,14 @@ int main(int argc, const char* argv[])
 	clock_t start;
 	clock_t total = 0;
 	srand(time(NULL));
-	uint64_t x = (rand() % (1 << mod)) - (1 << (mod - 1));
-	uint64_t y = (rand() % (1 << mod)) - (1 << (mod - 1));
-	uint64_t z = (rand() % (1 << mod)) - (1 << (mod - 1));
-	uint64_t z2 = rand() % (1 << mod);
+//	uint64_t x = (rand() % (1 << mod)) - (1 << (mod - 1));
+//	uint64_t y = (rand() % (1 << mod)) - (1 << (mod - 1));
+//	uint64_t z = (rand() % (1 << mod)) - (1 << (mod - 1));
+//	uint64_t z2 = rand() % (1 << mod);
+	uint64_t x = 1;
+	uint64_t y = 1;
+	uint64_t z = -1;
+	uint64_t z2 = 5;
 	uint64_t i1[] = {x, y, z};
 	uint64_t i2[] = {x, y, z2};
 	uint64_t c1 = encode(i1);
@@ -35,9 +39,12 @@ int main(int argc, const char* argv[])
 //		x = (x > 512 ? 512 : (x < 0 ? 0 : x));
 //		y = (y > 512 ? 512 : (y < 0 ? 0 : y));
 //		z = (z > 512 ? 512 : (z < 0 ? 0 : z));
-//		clamp(&c1);
-		c3 = add(c1, c2);
-		clamp(&c3);
+
+//		c3 = add(c1, c2);
+		printf("Unclamped: %u\n", c1);
+		clamp(&c1);
+		//clamp(&c3);
+		printf("Clamped: %u\n", c1);
 //		x *= 31;
 //		y *= 31;
 //		z *= 29;
