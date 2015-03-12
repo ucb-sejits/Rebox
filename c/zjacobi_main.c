@@ -18,6 +18,7 @@
 #define NDIM 3
 
 #define stdEncode(x, y, z) ((x) * array_size * array_size + (y) * array_size + (z))
+#define partition_to_index(partition, high, low) (high << (parallel_bits + low_order_bits) | partition << (low_order_bits) | low)
 
 int main(int argc, char* argv[])
 {
@@ -28,6 +29,7 @@ int main(int argc, char* argv[])
 //	num_threads_tmp = 2;
 	uint64_t num_threads = 1;
 	uint64_t parallel_bits = 0;
+	uint64_t log_2_box_dim = 4;
 
 	if (argc > 1)
 	{
@@ -35,9 +37,13 @@ int main(int argc, char* argv[])
 	}
 	if (argc > 2)
 	{
-		iterations = atoi((const char*) argv[2]);
+		log_2_box_dim = atoi((const char*) argv[2]);
 	}
 	if (argc > 3)
+	{
+		iterations = atoi((const char*) argv[2]);
+	}
+	if (argc > 4)
 	{
 		num_threads_tmp = atoi((const char*) argv[3]);
 	}
@@ -92,40 +98,46 @@ int main(int argc, char* argv[])
 	printf("Allocation succeeded\n");
 
 	printf("Found %d threads, %d parallel bits\n", num_threads, parallel_bits);
+	const uint64_t low_order_bits = log_2_box_dim;
+	printf("Low order: %d\n", low_order_bits);
+	const uint64_t low_max = 1 << low_order_bits;
+	const uint64_t high_order_bits = bits*3 - parallel_bits - low_order_bits;
+	printf("High Order: %d\n", high_order_bits);
+	const uint64_t high_max = 1 << high_order_bits;
+
 	double start = omp_get_wtime();
-	//printf("Start time: %f", start/CLOCKS_PER_SEC);
 
 	for (int iter = 0; iter < iterations; iter++)
 	{
 		printf("Starting iteration %d\n", iter);
 		//private(partition) private(neighborhood) shared(data) shared(out) shared(neighborhood_encoded_deltas)
-		#pragma omp parallel for num_threads(num_threads)
+		#pragma omp parallel for collapse(3)
 		for (uint64_t partition = 0; partition < num_threads; partition++)
 		{
-			uint32_t neighborhood[NEIGHBORS];
-			uint64_t partition_mask = partition << ((bits*NDIM) - parallel_bits);
-			for (uint64_t i = 0; i < (actual_size >> parallel_bits); i++)
+			for (uint64_t high = 0; high < high_max; high++)
 			{
-
-				uint64_t index = i | partition_mask;
-				//printf("i: %u\tpartition:%u\tindex:%d\n", i, partition, index);
-				//#pragma omp critical
+				for (uint64_t low = 0; low < low_max; low++)
 				{
-				for (uint64_t neighborhood_index = 0; neighborhood_index < NEIGHBORS; neighborhood_index++)
-				{
-					uint64_t delta = neighborhood_encoded_deltas[neighborhood_index];
-//					printf("Index: %u\t", index);
-					uint64_t ind = add(index, delta);
-//					printf("ind: %u\t", ind);
-					clamp(&ind);
-//					printf("code: %u\n", ind);
-					neighborhood[neighborhood_index] = data[ind];
-				}
-				}
-				out[index] = kernel(neighborhood);
+					uint32_t neighborhood[NEIGHBORS];
+					uint64_t index = partition_to_index(partition, high, low);
+					//printf("Index: %u\n", index);
+					//printf("partition:%u\thigh:%u\tlow:%u\n", partition, high, low);
 
+					for (uint64_t neighborhood_index = 0; neighborhood_index < NEIGHBORS; neighborhood_index++)
+					{
+						uint64_t delta = neighborhood_encoded_deltas[neighborhood_index];
+	//					printf("Index: %u\t", index);
+						uint64_t ind = add(index, delta);
+	//					printf("ind: %u\t", ind);
+						clamp(&ind);
+	//					printf("code: %u\n", ind);
+						neighborhood[neighborhood_index] = data[ind];
+					}
+
+					out[index] = kernel(neighborhood);
+
+				}
 			}
-
 		}
 	}
 	double end = omp_get_wtime();

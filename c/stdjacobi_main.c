@@ -25,15 +25,20 @@ int main(int argc, char* argv[])
 	printf("Allocating problem\n");
 	uint64_t array_size = 9;
 	uint32_t iterations = 1;
+	uint64_t log_2_box_dim = 4;
 	if (argc > 1)
 	{
 		array_size = atoi((const char*) argv[1]);
 	}
+	if(argc > 2)
+	{
+		log_2_box_dim = atoi((const char*) argv[2]);
+	}
 	int BITS = array_size;
 	array_size = 1 << array_size;
-	if (argc > 2)
+	if (argc > 3)
 	{
-		iterations = atoi((const char*) argv[2]);
+		iterations = atoi((const char*) argv[3]);
 	}
 	uint64_t actual_size = 1;
 	for(int i = 0; i < NDIM; i++)
@@ -63,33 +68,50 @@ int main(int argc, char* argv[])
 	printf("Malloc succeeded\n");
 	uint64_t neighborhood_deltas[NEIGHBORS][NDIM] = {{-1L, -1L, -1L}, {-1L, -1L, 0L}, {-1L, -1L, 1L}, {-1L, 0L, -1L}, {-1L, 0L, 0L}, {-1L, 0L, 1L}, {-1L, 1L, -1L}, {-1L, 1L, 0L}, {-1L, 1L, 1L}, {0L, -1L, -1L}, {0L, -1L, 0L}, {0L, -1L, 1L}, {0L, 0L, -1L}, {0L, 0L, 0L}, {0L, 0L, 1L}, {0L, 1L, -1L}, {0L, 1L, 0L}, {0L, 1L, 1L}, {1L, -1L, -1L}, {1L, -1L, 0L}, {1L, -1L, 1L}, {1L, 0L, -1L}, {1L, 0L, 0L}, {1L, 0L, 1L}, {1L, 1L, -1L}, {1L, 1L, 0L}, {1L, 1L, 1L}};
 	printf("Allocation succeeded\n");
+	uint32_t kb = 1 << log_2_box_dim;
+	uint32_t jb = kb;
+	printf("Box size: %u\n", kb);
 	double start = omp_get_wtime();
-	uint32_t neighborhood[NEIGHBORS];
 	for (int iter = 0; iter < iterations; iter++)
 	{
-		#pragma omp parallel for num_threads(omp_get_num_threads())
-		for (uint64_t i = 0; i < actual_size; i++)
+		#pragma omp parallel for collapse(2)
+		for (uint64_t kk=0;kk<array_size;kk+=kb)
 		{
-			int32_t x = i >> (BITS * 2);
-			int32_t y = (i >> BITS) & ((1 << BITS) - 1);
-			int32_t z = i & ((1 << BITS) - 1);
-
-			for (int i = 0; i < NEIGHBORS; i++)
+			for (uint64_t jj=0;jj<array_size;jj+=jb)
 			{
-				int32_t nx = x + neighborhood_deltas[i][0];
-				int32_t ny = y + neighborhood_deltas[i][1];
-				int32_t nz = z + neighborhood_deltas[i][2];
-				nx = sClamp(nx);
-				ny = sClamp(ny);
-				nz = sClamp(nz);
-				neighborhood[i] = data[encode(nx, ny, nz)];
+				for (uint64_t k=kk;k<kk+kb;k++)
+				{
+					for (uint64_t j=jj;j<jj+jb;j++)
+					{
+						for (uint64_t i=0;i<array_size;i++)
+						{
+							//printf("%u\t%u\t%u\n", i, j, k);
+							uint32_t neighborhood[NEIGHBORS];
+							for (char nindex = 0; nindex < NEIGHBORS; nindex++)
+							{
+								int64_t ni = neighborhood_deltas[nindex][0] + i;
+								int64_t nj = neighborhood_deltas[nindex][1] + j;
+								int64_t nk = neighborhood_deltas[nindex][2] + k;
+								ni = sClamp(ni);
+								nj = sClamp(nj);
+								nk = sClamp(nk);
+								//printf("%u\t%u\t%u\n", ni, nj, nk);
+								uint32_t d = data[encode(ni, nj, nk)];
+								//printf("%u\t%u\t%u\t%u\n", ni, nj, nk, d);
+								neighborhood[nindex] = d;
+							}
+							out[encode(i, j, k)] = kernel(neighborhood);
+							//printf("Finished kernel\n");
+						}
+					}
+				}
 			}
-			out[encode(x, y, z)] = kernel(neighborhood);
-			//printf("%u\t", out[encode(x,y,z)]);
 		}
 	}
 	double end = omp_get_wtime();
 	dump(out, array_size * 2);
+	free(data);
+	free(out);
 	float elapsed = ((end - start));
 	printf("Total time: %f\n", elapsed);
 	return 0;

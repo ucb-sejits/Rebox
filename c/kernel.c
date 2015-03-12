@@ -15,10 +15,12 @@ uint32_t kernel(uint32_t values[])
 {
 
 	uint32_t result = 0;
+	//printf("in kernel\n");
 	for (int i = 0; i < NEIGHBORS; i++)
 	{
 		result += values[i];
 	}
+	//printf("leaving kernel\n");
 	return result/NEIGHBORS;
 }
 
