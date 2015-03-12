@@ -258,78 +258,31 @@ class ZGenerator(OrderGenerator):
             )
         ])
 
-    def generate_encode(self, ndim, bits_per_dim, ctype, name, block_size=0):
+    def generate_encode(self, ndim, bits_per_dim, ctype, name):
         """
         :param ndim: number of dimensions
         :param bits_per_dim: bits per dimension
         :param ctype: ctype of data
         :param name: name of function
-        :param block_size: log2 of the number of elements in the lookup table
         :return: MultiNode with everything required, including FunctionDecl void <name> (*ctype indices) -> Z order index
         """
-        size = ctypes.sizeof(ctype)*8  # size of datatype in bits
-
-        block_size = max(block_size, ndim)  # a block has to at least hold 1 set of indices at a time
-        block_size -= block_size % ndim  # makes block_size a multiple of ndim
-        table_size = 2**block_size
-        tables = Array(type=Array(type=ctype(), size=ndim), size=table_size)
-        base_table = []
-        for i in range(table_size):
-            binary = ("0"*(ndim - 1)).join(list(bin(i)[2:]))  # literal binary insertion
-            val = int(binary, 2)
-            base_table.append(val)
-
-        for i in range(ndim):
-            shifted_table = [Hex(el << i) for el in base_table]
-            table_name = "lt_" + str(i)
-            arr = Array(type=ctype(), size=table_size, body=shifted_table)
-            tables.body.append(arr)
-
-        lookup_table = SymbolRef(name + "_lookup_table")
-        table_def = ArrayDef(
-            ArrayRef(
-                SymbolRef(lookup_table.name, sym_type=ctype(), _const=True),
-                Hex(ndim)
-            ),
-            table_size,
-            tables
-        )
+        size = ctypes.sizeof(ctype) * 8  # bit size of type
+        decl = FunctionDecl(name=name, params=[SymbolRef('indices', sym_type=ctypes.POINTER(ctype)())],
+                            return_type=ctype())
+        indices = SymbolRef('indices')
+        index_cycle = itertools.cycle(range(ndim))  # cycles through each dimension
+        shifts = range(int(math.ceil(size/ndim)))
+        steps = []
+        for shift, index in itertools.product(shifts, range(ndim)):
+            ind = ArrayRef(indices, Constant(index))
+            elt = ind & Hex(2**shift)
+            final_value = elt << Constant(2*shift + index)
+            steps.append(final_value)
+        retval = reduce(BitOr, steps)
+        decl.defn = [Return(retval)]
+        return OrderGenerator.GeneratedResult(decl, [])
 
 
-
-
-        decl = FunctionDecl(name=name,
-                            return_type=ctype(),
-                            params=[SymbolRef('indices', sym_type=ctypes.POINTER(ctype)())],
-        )
-
-        indices = SymbolRef("indices")
-        window = Hex(table_size - 1)
-
-        num_windows = int(math.ceil(size / block_size))  # number of shifts we need to do
-        things_to_or = []  # set of masks to OR together to obtain final
-        for window_num in range(num_windows):  # handling 1 dimension at a time to try and preserve cache
-            group = []
-            for dim in range(ndim):
-                shift = window_num * block_size
-                item = ArrayRef(ArrayRef(lookup_table, Hex(dim)),
-                                BitAnd(
-                                    BitShR(
-                                        ArrayRef(
-                                            indices,
-                                            Hex(dim)
-                                        ),
-                                        Hex(shift)
-                                    ),
-                                    window
-                                )
-                )
-                group.append(item)
-            things_to_or.append(BitShL(reduce(BitOr, group), Hex(shift)))
-        reduced = reduce(BitOr, things_to_or)
-        final = Return(reduced)
-        decl.defn = [final]
-        return OrderGenerator.GeneratedResult(decl, [table_def])
 
 class ZGenerator2(ZGenerator):
 

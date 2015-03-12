@@ -1,6 +1,7 @@
 __author__ = 'nzhang-dev'
 
 from ctree.c.nodes import Array, Constant
+import ctypes
 
 
 def bit_list_to_int(bit_list):
@@ -23,7 +24,7 @@ def decompose(z_order_code, ndim=3):
 
     return result
 
-def generate_neighborhoods(neighborhood):
+def generate_neighborhoods(neighborhood, ctype=ctypes.c_int32):
     """
     :param neighborhood: iterable of relative indices for neighborhood
     :return: C nested array, neighborhood elements
@@ -31,7 +32,7 @@ def generate_neighborhoods(neighborhood):
     length = 0
     output = Array(None, None, [])
     for coord in neighborhood:
-        tmp = Array(None, len(coord), [Constant(i) for i in coord])
+        tmp = Array(None, len(coord), [Constant(ctype(i)) for i in coord])
         length += 1
         output.body.append(tmp)
     output.size = length
