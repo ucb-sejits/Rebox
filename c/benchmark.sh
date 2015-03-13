@@ -5,5 +5,5 @@ do
 python ../specializers/z_generator.py 3 $i > ../c/zjacobi.c
 gcc -std=c99 -O3 -fopenmp -w zjacobi_main.c -o zjacobi_main
 echo $i >> z$1.log
-./zjacobi_main $i $1
+./zjacobi_main $i $1 >> z$1.log
 done
