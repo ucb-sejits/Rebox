@@ -109,7 +109,7 @@ int main(int argc, char* argv[])
 		}
 	}
 	double end = omp_get_wtime();
-	dump(out, array_size * 2);
+	dump(out, array_size, 2);
 	free(data);
 	free(out);
 	float elapsed = ((end - start));

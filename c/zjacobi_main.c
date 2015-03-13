@@ -22,7 +22,7 @@
 
 int main(int argc, char* argv[])
 {
-	printf("Allocating problem\n");
+	//printf("Allocating problem\n");
 	uint64_t array_size = 9;
 	uint32_t iterations = 1;
 	uint64_t num_threads_tmp = omp_get_max_threads();
@@ -65,53 +65,48 @@ int main(int argc, char* argv[])
 	{
 		actual_size *= array_size;
 	}
-	printf("Malloccing\n");
+	//printf("Malloccing\n");
 	uint32_t *data = (uint32_t*) malloc(sizeof(uint32_t) * actual_size);
 	uint32_t *out = (uint32_t*) malloc(sizeof(uint32_t) * actual_size);
 	if(data == NULL)
 	{
-		printf("Allocation failed");
+		//printf("Allocation failed");
 		return 1;
 	}
-	printf("Malloc succeeded\n");
+	//printf("Malloc succeeded\n");
 	uint64_t neighborhood_deltas[NEIGHBORS][NDIM] = {{-1L, -1L, -1L}, {-1L, -1L, 0L}, {-1L, -1L, 1L}, {-1L, 0L, -1L}, {-1L, 0L, 0L}, {-1L, 0L, 1L}, {-1L, 1L, -1L}, {-1L, 1L, 0L}, {-1L, 1L, 1L}, {0L, -1L, -1L}, {0L, -1L, 0L}, {0L, -1L, 1L}, {0L, 0L, -1L}, {0L, 0L, 0L}, {0L, 0L, 1L}, {0L, 1L, -1L}, {0L, 1L, 0L}, {0L, 1L, 1L}, {1L, -1L, -1L}, {1L, -1L, 0L}, {1L, -1L, 1L}, {1L, 0L, -1L}, {1L, 0L, 0L}, {1L, 0L, 1L}, {1L, 1L, -1L}, {1L, 1L, 0L}, {1L, 1L, 1L}};
-	printf("allocating delta matrix\n");
+	//printf("allocating delta matrix\n");
 	uint64_t neighborhood_encoded_deltas[NEIGHBORS];
 
-	printf("Reindexing\n");
+	//printf("Reindexing\n");
 	for (uint64_t i = 0; i < NEIGHBORS; i++)
 	{
 		neighborhood_encoded_deltas[i] = encode(neighborhood_deltas[i]);
 	}
-	for (int i = 0; i < NEIGHBORS; i++)
-	{
-		printf("%ul\t", neighborhood_encoded_deltas[i]);
-	}
-	printf("\n");
-	printf("Finished Reindexing\n");
+	//printf("Finished Reindexing\n");
 	for(uint32_t z = 0; z < array_size; z++)
 	{
 		uint64_t index[] = {0, 0, z};
 		uint64_t addr = encode(index);
 		data[addr] = 729;
 	}
-	printf("Allocation succeeded\n");
+	//printf("Allocation succeeded\n");
 
-	printf("Found %d threads, %d parallel bits\n", num_threads, parallel_bits);
+	//printf("Found %d threads, %d parallel bits\n", num_threads, parallel_bits);
 	const uint64_t low_order_bits = log_2_box_dim;
-	printf("Low order: %d\n", low_order_bits);
+	//printf("Low order: %d\n", low_order_bits);
 	const uint64_t low_max = 1 << low_order_bits;
 	const uint64_t high_order_bits = bits*3 - parallel_bits - low_order_bits;
-	printf("High Order: %d\n", high_order_bits);
+	//printf("High Order: %d\n", high_order_bits);
 	const uint64_t high_max = 1 << high_order_bits;
 
 	double start = omp_get_wtime();
 
 	for (int iter = 0; iter < iterations; iter++)
 	{
-		printf("Starting iteration %d\n", iter);
+		//printf("Starting iteration %d\n", iter);
 		//private(partition) private(neighborhood) shared(data) shared(out) shared(neighborhood_encoded_deltas)
-		#pragma omp parallel for collapse(3)
+		#pragma omp parallel for collapse(3) ordered
 		for (uint64_t partition = 0; partition < num_threads; partition++)
 		{
 			for (uint64_t high = 0; high < high_max; high++)
@@ -126,14 +121,13 @@ int main(int argc, char* argv[])
 					for (uint64_t neighborhood_index = 0; neighborhood_index < NEIGHBORS; neighborhood_index++)
 					{
 						uint64_t delta = neighborhood_encoded_deltas[neighborhood_index];
-	//					printf("Index: %u\t", index);
+	//					//printf("Index: %u\t", index);
 						uint64_t ind = add(index, delta);
-	//					printf("ind: %u\t", ind);
+	//					//printf("ind: %u\t", ind);
 						clamp(&ind);
-	//					printf("code: %u\n", ind);
+	//					//printf("code: %u\n", ind);
 						neighborhood[neighborhood_index] = data[ind];
 					}
-
 					out[index] = kernel(neighborhood);
 
 				}
@@ -158,7 +152,7 @@ int main(int argc, char* argv[])
 
 	float elapsed = end - start;
 	printf("Total time: %f\n", elapsed);
-	dump(data, array_size * 2);
+	//dump(data, array_size, 2);
 	free(data);
 	free(out);
 	return 0;

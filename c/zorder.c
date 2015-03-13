@@ -22,7 +22,7 @@ int main(int argc, const char* argv[])
 //	uint64_t z = (rand() % (1 << mod)) - (1 << (mod - 1));
 //	uint64_t z2 = rand() % (1 << mod);
 	uint64_t x = 0;
-	uint64_t y = 0;
+	uint64_t y = -1;
 	uint64_t z = 0;
 	uint64_t z2 = -2ll;
 	uint64_t i1[] = {x, y, z};
@@ -32,7 +32,7 @@ int main(int argc, const char* argv[])
 	uint64_t c3;
 	uint64_t t = 0;
 	start = clock();
-	printf("%d\n", sizeof(uint64_t));
+	//printf("%d\n", sizeof(uint64_t));
 	for (uint64_t i = 0; i < iterations; i++)
 	{
 //		t += encode(i1);

@@ -270,13 +270,14 @@ class ZGenerator(OrderGenerator):
         decl = FunctionDecl(name=name, params=[SymbolRef('indices', sym_type=ctypes.POINTER(ctype)())],
                             return_type=ctype())
         indices = SymbolRef('indices')
-        index_cycle = itertools.cycle(range(ndim))  # cycles through each dimension
-        shifts = range(int(math.ceil(size/ndim)))
+        shifts = range(int(math.ceil(size/ndim)) + 1)
         steps = []
         for shift, index in itertools.product(shifts, range(ndim)):
+            if ndim*shift + index > size:
+                break
             ind = ArrayRef(indices, Constant(index))
             elt = ind & Hex(2**shift)
-            final_value = elt << Constant(2*shift + index)
+            final_value = elt << Constant((ndim-1)*shift + index)
             steps.append(final_value)
         retval = reduce(BitOr, steps)
         decl.defn = [Return(retval)]
