@@ -1,6 +1,7 @@
 __author__ = 'nzhang-dev'
 
 from ctree.c.nodes import CFile, MultiNode
+from ctree.cpp.nodes import CppInclude
 from collections import namedtuple
 
 import abc
@@ -25,7 +26,12 @@ class OrderGenerator(object):
             decls.append(decl)
             auxes.extend(aux)
 
-        master.body = auxes + decls
+        includes = [
+            CppInclude(target) for target in ("stdint.h", )
+        ]
+
+
+        master.body = includes + auxes + decls
         return master
 
     @abc.abstractmethod

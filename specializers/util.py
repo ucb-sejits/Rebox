@@ -1,7 +1,9 @@
 __author__ = 'nzhang-dev'
 
 from ctree.c.nodes import Array, Constant
+
 import ctypes
+import itertools
 
 
 def bit_list_to_int(bit_list):
@@ -37,3 +39,15 @@ def generate_neighborhoods(neighborhood, ctype=ctypes.c_int32):
         output.body.append(tmp)
     output.size = length
     return output
+
+def encode(indices):
+    indices = list(indices)
+    indexes = itertools.cycle(range(len(indices)))
+    shift = 0
+    out = 0
+    while any(indices):
+        i = next(indexes)
+        out |= (indices[i] & 1) << shift
+        indices[i] >>= 1
+        shift += 1
+    return out
