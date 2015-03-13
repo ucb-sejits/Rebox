@@ -151,7 +151,7 @@ int main(int argc, char* argv[])
 	}
 
 	float elapsed = end - start;
-	printf("Total time: %f\n", elapsed);
+	printf("%f\n", elapsed);
 	//dump(data, array_size, 2);
 	free(data);
 	free(out);
