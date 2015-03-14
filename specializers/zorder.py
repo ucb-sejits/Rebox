@@ -99,6 +99,14 @@ class EncodeConversion(LazySpecializedFunction):
             out[index] = in_arr[encode(index)]
         return out
 
+class DecodeConversion(EncodeConversion):
+    @staticmethod
+    def apply(in_arr):
+        out = np.zeros_like(in_arr)
+        out = out.flatten()
+        for index in _indices(in_arr):
+            out[encode(index)] = in_arr[index]
+        return out
 
 
 if __name__ == "__main__":
@@ -106,6 +114,8 @@ if __name__ == "__main__":
     print(arr)
     encoder = EncodeConversion()
     encoded = encoder(arr)
-    other_encoded = encoder.apply(arr)
+    decoder = DecodeConversion()
+    other_encoded = encoder(arr)
+    decoded = decoder.apply(encoded.reshape((8, 8)))
     print(encoded.reshape((8, 8)))
-    print(other_encoded.reshape((8, 8)))
+    print(decoded.reshape((8, 8)))
