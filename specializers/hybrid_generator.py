@@ -20,7 +20,7 @@ class HybridOrder(OrderGenerator):
         self._generators = tuple(generators)
 
 
-    def generate_add(self, ndim, bits_per_dim, ctype, name):
+    def generate_add(self, ndim, bits_per_dim, ctype):
         """
         :param ndim: number of dimensions
         :param bits_per_dim: Tuple (bits/dim for each ordering)

@@ -10,29 +10,31 @@ import ctree  # forces loading of type generators. Current bug.
 
 
 from ctree.c.nodes import (ArrayDef, Array, SymbolRef, FunctionDecl, Constant, MultiNode, Assign, BitAnd, BitAndAssign,
-                           BitShR, Deref, BitNot, ArrayRef, BitOr, BitOrAssign, Add, Return, BitShL, Hex, Ref)
+                           BitShR, Deref, BitNot, ArrayRef, BitOr, BitOrAssign, Add, Return, BitShL, Hex, Mul)
 
 from macros import prefetch
+
 
 import itertools
 import math
 from functools import reduce
 from util import bit_list_to_int
 
-from order import OrderGenerator
+from order import FunctionGenerator, Ordering
 
 
-class ZGenerator(OrderGenerator):
-    def generate_clamp(self, ndim, bits_per_dim, ctype, name):
+class LUTClamp(FunctionGenerator):
+    name = "clamp"
+
+    def generate(self, ndim, bits_per_dim, ctype):
         """
         :param ndim: number of dimensions
         :param bits_per_dim: bits per dimension
         :param ctype: ctype of data
-        :param name: name of function
         :return: MultiNode with everything required, including FunctionDecl void <name> (*ctype code)
         """
 
-        def _generate_repeat_mask(ndim, mask_size, ctype):
+        def _generate(ndim, mask_size, ctype):
             """
             :param ndim: number of dimensions
             :param mask_size: total size of mask, in bits
@@ -47,15 +49,15 @@ class ZGenerator(OrderGenerator):
             array_type = ctypes.POINTER(ctype)
             return Array(type=array_type, size=2**ndim, body=masks)
 
-        decl = FunctionDecl(name=name, params=[SymbolRef('code', sym_type=ctypes.POINTER(ctype)())])
+        decl = FunctionDecl(name=self.name, params=[SymbolRef('code', sym_type=ctypes.POINTER(ctype)())])
         code = SymbolRef('code')
         mask = SymbolRef("mask")
         size = ctypes.sizeof(ctype) * 8  # 8 bits/byte
         underflow_start = Hex(size - size%ndim - ndim)
         overflow_start = Hex(ndim * bits_per_dim)
         overflow_end = Hex(underflow_start.value - 1)
-        underflow_mask = SymbolRef(name + "_underflow_mask")
-        overflow_mask = SymbolRef(name + "_overflow_mask")
+        underflow_mask = SymbolRef(self.name + "_underflow_mask")
+        overflow_mask = SymbolRef(self.name + "_overflow_mask")
         overflow_bits = overflow_end.value - overflow_start.value + 1
         window_mask = Hex(2 ** ndim - 1)  # ndim 1's
         overflow_window_mask = Hex(2 ** (overflow_end.value - overflow_start.value + 1) - 1)
@@ -101,23 +103,25 @@ class ZGenerator(OrderGenerator):
             )
         ]
 
-        underflow_array = _generate_repeat_mask(ndim, size, ctype)
+        underflow_array = _generate(ndim, size, ctype)
         underflow_mask_def = ArrayDef(
             SymbolRef(underflow_mask.name, ctype(), _const=True),
             underflow_array.size,
             underflow_array
         )
 
-        overflow_array = _generate_repeat_mask(ndim, ndim * bits_per_dim, ctype)
+        overflow_array = _generate(ndim, ndim * bits_per_dim, ctype)
         overflow_mask_def = ArrayDef(
             SymbolRef(overflow_mask.name, ctype(), _const=True),
             overflow_array.size,
             overflow_array
         )
-        return OrderGenerator.GeneratedResult(decl, [underflow_mask_def, overflow_mask_def])
+        return FunctionGenerator.GeneratedResult(decl, [underflow_mask_def, overflow_mask_def])
 
+class Add2(FunctionGenerator):
+    name = "add"
 
-    def generate_add(self, ndim, bits_per_dim, ctype, name, lut_scale=1):
+    def generate(self, ndim, bits_per_dim, ctype, lut_scale=1):
         """
         :param ndim: number of dimensions
         :param bits_per_dim: bits per dimension
@@ -162,12 +166,12 @@ class ZGenerator(OrderGenerator):
                             body=arrays)
 
 
-        carry_table = SymbolRef(name + "_carry_table")
-        output_table = SymbolRef(name + "_output_table")
+        carry_table = SymbolRef(self.name + "_carry_table")
+        output_table = SymbolRef(self.name + "_output_table")
 
 
 
-        decl = FunctionDecl(name=name,
+        decl = FunctionDecl(name=self.name,
                             return_type=ctype(),
                             params=[SymbolRef('code', sym_type=ctype()),
                                                SymbolRef('code2', sym_type=ctype())]
@@ -223,7 +227,7 @@ class ZGenerator(OrderGenerator):
             Return(out)
         )
 
-        return OrderGenerator.GeneratedResult(decl, [
+        return FunctionGenerator.GeneratedResult(decl, [
             Assign(
                 ArrayRef(
                     ArrayRef(
@@ -258,7 +262,10 @@ class ZGenerator(OrderGenerator):
             )
         ])
 
-    def generate_encode(self, ndim, bits_per_dim, ctype, name):
+class Encode(FunctionGenerator):
+    name = "encode"
+
+    def generate(self, ndim, bits_per_dim, ctype):
         """
         :param ndim: number of dimensions
         :param bits_per_dim: bits per dimension
@@ -267,7 +274,7 @@ class ZGenerator(OrderGenerator):
         :return: MultiNode with everything required, including FunctionDecl void <name> (*ctype indices) -> Z order index
         """
         size = ctypes.sizeof(ctype) * 8  # bit size of type
-        decl = FunctionDecl(name=name, params=[SymbolRef('indices', sym_type=ctypes.POINTER(ctype)())],
+        decl = FunctionDecl(name=self.name, params=[SymbolRef('indices', sym_type=ctypes.POINTER(ctype)())],
                             return_type=ctype())
         indices = SymbolRef('indices')
         shifts = range(int(math.ceil(size/ndim)) + 1)
@@ -281,13 +288,14 @@ class ZGenerator(OrderGenerator):
             steps.append(final_value)
         retval = reduce(BitOr, steps)
         decl.defn = [Return(retval)]
-        return OrderGenerator.GeneratedResult(decl, [])
+        return FunctionGenerator.GeneratedResult(decl)
 
 
 
-class ZGenerator2(ZGenerator):
+class Add3(FunctionGenerator):
+    name = "add"
 
-    def generate_add(self, ndim, bits_per_dim, ctype, name):
+    def generate(self, ndim, bits_per_dim, ctype):
         """
         :param ndim: number of dimensions
         :param bits_per_dim: bits per dimension
@@ -297,7 +305,7 @@ class ZGenerator2(ZGenerator):
         """
 
         master = MultiNode()
-        decl = FunctionDecl(name=name, params=[SymbolRef('code', sym_type=ctype()),
+        decl = FunctionDecl(name=self.name, params=[SymbolRef('code', sym_type=ctype()),
                                                SymbolRef('code2', sym_type=ctype())],
                             return_type=ctype())
 
@@ -309,7 +317,7 @@ class ZGenerator2(ZGenerator):
         ret = SymbolRef("output")
         masked_code = SymbolRef("masked_code")
         masked_code2 = SymbolRef("masked_code2")
-        repeat_mask_array = SymbolRef(name + "_repeat_mask_array")
+        repeat_mask_array = SymbolRef(self.name + "_repeat_mask_array")
 
         repeat_mask = []
         for i in range(ndim):
@@ -361,13 +369,14 @@ class ZGenerator2(ZGenerator):
         decl.defn.append(
             Return(ret)
         )
-        return OrderGenerator.GeneratedResult(decl, [ArrayDef(SymbolRef(repeat_mask_array.name, ctype(), _const=True),
+        return FunctionGenerator.GeneratedResult(decl, [ArrayDef(SymbolRef(repeat_mask_array.name, ctype(), _const=True),
                      repeat_mask.size,
                      repeat_mask)])
 
-class ZGenerator3(ZGenerator):
+class Add4(FunctionGenerator):
+    name = "add"
 
-    def generate_add(self, ndim, bits_per_dim, ctype, name):
+    def generate(self, ndim, bits_per_dim, ctype):
         """
         :param ndim: number of dimensions
         :param bits_per_dim: bits per dimension
@@ -377,7 +386,7 @@ class ZGenerator3(ZGenerator):
         """
 
         master = MultiNode()
-        decl = FunctionDecl(name=name, params=[SymbolRef('code', sym_type=ctype()),
+        decl = FunctionDecl(name=self.name, params=[SymbolRef('code', sym_type=ctype()),
                                                SymbolRef('code2', sym_type=ctype())],
                             return_type=ctype())
 
@@ -408,7 +417,76 @@ class ZGenerator3(ZGenerator):
             Return(reduce(BitOr, to_be_combined))
         )
 
-        return OrderGenerator.GeneratedResult(decl, [])
+        return FunctionGenerator.GeneratedResult(decl)
+
+class MulClamp(FunctionGenerator):
+    name = "clamp"
+
+    def generate(self, ndim, bits_per_dim, ctype):
+        """
+        :param ndim: number of dimensions
+        :param bits_per_dim: bits per dimension
+        :param ctype: ctype of data
+        :param name: name of function
+        :return: MultiNode with everything required, including FunctionDecl void <name> (*ctype code)
+        """
+        decl = FunctionDecl(name=self.name, params=[SymbolRef('code', sym_type=ctypes.POINTER(ctype)())])
+        code = SymbolRef('code')
+        mask = SymbolRef("mask")
+        size = ctypes.sizeof(ctype) * 8  # 8 bits/byte
+        underflow_start = Hex(size - size%ndim - ndim)
+        overflow_start = Hex(ndim * bits_per_dim)
+        overflow_end = Hex(underflow_start.value - 1)
+        overflow_bits = overflow_end.value - overflow_start.value + 1
+        window_mask = Hex(2 ** ndim - 1)  # ndim 1's
+        overflow_window_mask = Hex(2 ** (overflow_end.value - overflow_start.value + 1) - 1)
+        index_filter = Hex(2 ** (ndim * bits_per_dim) - 1)
+
+        repeater = "1".zfill(ndim) * size
+        overflow = Hex(int(repeater[-overflow_start.value:], 2))
+        underflow = Hex(int(repeater[-size:], 2))
+
+        decl.defn = [
+            BitAndAssign(
+                Deref(code),
+                BitNot(
+                    Mul(
+                        underflow,
+                        BitAnd(
+                            BitShR(Deref(code), underflow_start),
+                            window_mask
+                        )
+                    )
+                )
+            ),
+            Assign(
+                SymbolRef("mask", ctype()),
+                BitAnd(
+                    BitShR(
+                        Deref(code),
+                        overflow_start
+                    ),
+                    overflow_window_mask
+                )
+            ),
+            BitOrAssign(
+                Deref(code),
+                Mul(
+                    overflow,
+                    BitAnd(
+                        reduce(BitOr, [
+                            BitShR(mask, Hex(i)) for i in range(0, overflow_bits, ndim)
+                        ]),
+                        window_mask
+                    )
+                )
+            ),
+            BitAndAssign(
+                Deref(code),
+                index_filter
+            )
+        ]
+        return FunctionGenerator.GeneratedResult(decl)
 
 if __name__ == "__main__":
     #print(sys.argv)
@@ -419,7 +497,10 @@ if __name__ == "__main__":
     if len(sys.argv) > 2:
         bits_per_dim = int(sys.argv[2])
     ctype = ctypes.c_uint64
-    if len(sys.argv) > 3:
-        ctype = getattr(ctypes, 'c_uint' + sys.argv[3])
+    add_choice, clamp_choice = sys.argv[3:5]
+    a = [Add2, Add3, Add4][int(add_choice)]
+    c = [LUTClamp, MulClamp][int(clamp_choice)]
 
-    print(ZGenerator3().generate_block(ndim, bits_per_dim, ctype))
+    generator = Ordering([a(), c(), Encode()])
+
+    print(generator.generate(ndim, bits_per_dim, ctype))

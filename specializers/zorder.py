@@ -19,8 +19,6 @@ from ctree.transformations import PyBasicConversions
 
 from util import encode
 
-from z_generator import ZGenerator3
-
 def _indices(arr):
     return product(*[range(i) for i in arr.shape])
 
