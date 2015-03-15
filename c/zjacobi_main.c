@@ -124,7 +124,8 @@ int main(int argc, char* argv[])
 	//					//printf("Index: %u\t", index);
 						uint64_t ind = add(index, delta);
 	//					//printf("ind: %u\t", ind);
-						clamp(&ind);
+						//clamp(&ind);
+						ind = clamp(ind);
 	//					//printf("code: %u\n", ind);
 						neighborhood[neighborhood_index] = data[ind];
 					}

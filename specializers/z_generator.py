@@ -49,7 +49,8 @@ class LUTClamp(FunctionGenerator):
             array_type = ctypes.POINTER(ctype)
             return Array(type=array_type, size=2**ndim, body=masks)
 
-        decl = FunctionDecl(name=self.name, params=[SymbolRef('code', sym_type=ctypes.POINTER(ctype)())])
+        decl = FunctionDecl(name=self.name, params=[SymbolRef('code', sym_type=ctype())], return_type=ctype(),
+                            attributes=('pure',))
         code = SymbolRef('code')
         mask = SymbolRef("mask")
         size = ctypes.sizeof(ctype) * 8  # 8 bits/byte
@@ -64,12 +65,12 @@ class LUTClamp(FunctionGenerator):
         index_filter = Hex(2 ** (ndim * bits_per_dim) - 1)
         decl.defn = [
             BitAndAssign(
-                Deref(code),
+                code,
                 BitNot(
                     ArrayRef(
                         underflow_mask,
                         BitAnd(
-                            BitShR(Deref(code), underflow_start),
+                            BitShR(code, underflow_start),
                             window_mask
                         )
                     )
@@ -79,14 +80,14 @@ class LUTClamp(FunctionGenerator):
                 SymbolRef("mask", ctype()),
                 BitAnd(
                     BitShR(
-                        Deref(code),
+                        code,
                         overflow_start
                     ),
                     overflow_window_mask
                 )
             ),
             BitOrAssign(
-                Deref(code),
+                code,
                 ArrayRef(
                     overflow_mask,
                     BitAnd(
@@ -97,9 +98,11 @@ class LUTClamp(FunctionGenerator):
                     )
                 )
             ),
-            BitAndAssign(
-                Deref(code),
-                index_filter
+            Return(
+                BitAnd(
+                    code,
+                    index_filter
+                )
             )
         ]
 
@@ -116,6 +119,9 @@ class LUTClamp(FunctionGenerator):
             overflow_array.size,
             overflow_array
         )
+        decl.set_static()
+        decl.set_inline()
+
         return FunctionGenerator.GeneratedResult(decl, [underflow_mask_def, overflow_mask_def])
 
 class Add2(FunctionGenerator):
@@ -174,7 +180,8 @@ class Add2(FunctionGenerator):
         decl = FunctionDecl(name=self.name,
                             return_type=ctype(),
                             params=[SymbolRef('code', sym_type=ctype()),
-                                               SymbolRef('code2', sym_type=ctype())]
+                                    SymbolRef('code2', sym_type=ctype()),],
+                            attributes=('pure',)
         )
         master.body.append(decl)
         carry_in = SymbolRef("carry_in")
@@ -226,6 +233,9 @@ class Add2(FunctionGenerator):
         decl.defn.append(
             Return(out)
         )
+
+        decl.set_static()
+        decl.set_inline()
 
         return FunctionGenerator.GeneratedResult(decl, [
             Assign(
@@ -307,7 +317,7 @@ class Add3(FunctionGenerator):
         master = MultiNode()
         decl = FunctionDecl(name=self.name, params=[SymbolRef('code', sym_type=ctype()),
                                                SymbolRef('code2', sym_type=ctype())],
-                            return_type=ctype())
+                            return_type=ctype(), attributes=('pure',))
 
 
         size = ctypes.sizeof(ctype) * 8
@@ -369,6 +379,9 @@ class Add3(FunctionGenerator):
         decl.defn.append(
             Return(ret)
         )
+        decl.set_static()
+        decl.set_inline()
+
         return FunctionGenerator.GeneratedResult(decl, [ArrayDef(SymbolRef(repeat_mask_array.name, ctype(), _const=True),
                      repeat_mask.size,
                      repeat_mask)])
@@ -388,7 +401,7 @@ class Add4(FunctionGenerator):
         master = MultiNode()
         decl = FunctionDecl(name=self.name, params=[SymbolRef('code', sym_type=ctype()),
                                                SymbolRef('code2', sym_type=ctype())],
-                            return_type=ctype())
+                            return_type=ctype(), attributes=["const"])
 
 
         size = ctypes.sizeof(ctype) * 8
@@ -416,6 +429,8 @@ class Add4(FunctionGenerator):
         decl.defn.append(
             Return(reduce(BitOr, to_be_combined))
         )
+        decl.set_inline()
+        decl.set_static()
 
         return FunctionGenerator.GeneratedResult(decl)
 
@@ -430,7 +445,8 @@ class MulClamp(FunctionGenerator):
         :param name: name of function
         :return: MultiNode with everything required, including FunctionDecl void <name> (*ctype code)
         """
-        decl = FunctionDecl(name=self.name, params=[SymbolRef('code', sym_type=ctypes.POINTER(ctype)())])
+        decl = FunctionDecl(name=self.name, params=[SymbolRef('code', sym_type=ctype())], return_type=ctype(),
+                            attributes=("const",))
         code = SymbolRef('code')
         mask = SymbolRef("mask")
         size = ctypes.sizeof(ctype) * 8  # 8 bits/byte
@@ -448,12 +464,12 @@ class MulClamp(FunctionGenerator):
 
         decl.defn = [
             BitAndAssign(
-                Deref(code),
+                code,
                 BitNot(
                     Mul(
                         underflow,
                         BitAnd(
-                            BitShR(Deref(code), underflow_start),
+                            BitShR(code, underflow_start),
                             window_mask
                         )
                     )
@@ -463,14 +479,14 @@ class MulClamp(FunctionGenerator):
                 SymbolRef("mask", ctype()),
                 BitAnd(
                     BitShR(
-                        Deref(code),
+                        code,
                         overflow_start
                     ),
                     overflow_window_mask
                 )
             ),
             BitOrAssign(
-                Deref(code),
+                code,
                 Mul(
                     overflow,
                     BitAnd(
@@ -481,11 +497,17 @@ class MulClamp(FunctionGenerator):
                     )
                 )
             ),
-            BitAndAssign(
-                Deref(code),
-                index_filter
+            Return(
+                BitAnd(
+                    code,
+                    index_filter
+                )
             )
         ]
+
+        decl.set_inline()
+        decl.set_static()
+
         return FunctionGenerator.GeneratedResult(decl)
 
 if __name__ == "__main__":

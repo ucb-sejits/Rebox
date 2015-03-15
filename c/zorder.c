@@ -21,10 +21,10 @@ int main(int argc, const char* argv[])
 //	uint64_t y = (rand() % (1 << mod)) - (1 << (mod - 1));
 //	uint64_t z = (rand() % (1 << mod)) - (1 << (mod - 1));
 //	uint64_t z2 = rand() % (1 << mod);
-	uint64_t x = 0;
-	uint64_t y = -1;
-	uint64_t z = 0;
-	uint64_t z2 = -2ll;
+	uint64_t x = 2;
+	uint64_t y = 5;
+	uint64_t z = 4;
+	uint64_t z2 = 3;
 	uint64_t i1[] = {x, y, z};
 	uint64_t i2[] = {x, y, z2};
 	uint64_t c1 = encode(i1);
