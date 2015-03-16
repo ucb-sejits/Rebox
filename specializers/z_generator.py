@@ -510,6 +510,78 @@ class MulClamp(FunctionGenerator):
 
         return FunctionGenerator.GeneratedResult(decl)
 
+
+class PartialMulClamp(FunctionGenerator):
+    name = "clamp"
+
+    def generate(self, ndim, bits_per_dim, ctype):
+        """
+        :param ndim: number of dimensions
+        :param bits_per_dim: bits per dimension
+        :param ctype: ctype of data
+        :param name: name of function
+        :return: MultiNode with everything required, including FunctionDecl void <name> (*ctype code)
+        """
+        decl = FunctionDecl(name=self.name, params=[SymbolRef('code', sym_type=ctype())], return_type=ctype(),
+                            attributes=("const",))
+        code = SymbolRef('code')
+        mask = SymbolRef("mask")
+        size = ctypes.sizeof(ctype) * 8  # 8 bits/byte
+        underflow_start = Hex(size - size%ndim - ndim)
+        overflow_start = Hex(ndim * bits_per_dim)
+        overflow_end = Hex(underflow_start.value - 1)
+        overflow_bits = overflow_end.value - overflow_start.value + 1
+        window_mask = Hex(2 ** ndim - 1)  # ndim 1's
+        overflow_window_mask = Hex(2 ** (overflow_end.value - overflow_start.value + 1) - 1)
+        index_filter = Hex(2 ** (ndim * bits_per_dim) - 1)
+
+        repeater = "1".zfill(ndim) * size
+        overflow = Hex(int(repeater[-overflow_start.value:], 2))
+        underflow = Hex(int(repeater[-size:], 2))
+
+        decl.defn = [
+            BitAndAssign(
+                code,
+                BitNot(
+                    Mul(
+                        underflow,
+                        BitAnd(
+                            BitShR(code, underflow_start),
+                            window_mask
+                        )
+                    )
+                )
+            ),
+            Assign(
+                SymbolRef("mask", ctype()),
+                BitAnd(
+                    BitShR(
+                        code,
+                        overflow_start
+                    ),
+                    overflow_window_mask
+                )
+            ),
+            BitOrAssign(
+                code,
+                Mul(
+                    overflow,
+                    BitAnd(mask, Hex(2**ndim - 1))
+                )
+            ),
+            Return(
+                BitAnd(
+                    code,
+                    index_filter
+                )
+            )
+        ]
+
+        decl.set_inline()
+        decl.set_static()
+
+        return FunctionGenerator.GeneratedResult(decl)
+
 if __name__ == "__main__":
     #print(sys.argv)
     ndim = 3
@@ -521,7 +593,7 @@ if __name__ == "__main__":
     ctype = ctypes.c_uint64
     add_choice, clamp_choice = sys.argv[3:5]
     a = [Add2, Add3, Add4][int(add_choice)]
-    c = [LUTClamp, MulClamp][int(clamp_choice)]
+    c = [LUTClamp, MulClamp, PartialMulClamp][int(clamp_choice)]
 
     generator = Ordering([a(), c(), Encode()])
 

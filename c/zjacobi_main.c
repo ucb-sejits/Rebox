@@ -113,7 +113,7 @@ int main(int argc, char* argv[])
 			{
 				for (uint64_t low = 0; low < low_max; low++)
 				{
-					uint32_t neighborhood[NEIGHBORS];
+					uint32_t total = 0;
 					uint64_t index = partition_to_index(partition, high, low);
 					//printf("Index: %u\n", index);
 					//printf("partition:%u\thigh:%u\tlow:%u\n", partition, high, low);
@@ -127,9 +127,9 @@ int main(int argc, char* argv[])
 						//clamp(&ind);
 						ind = clamp(ind);
 	//					//printf("code: %u\n", ind);
-						neighborhood[neighborhood_index] = data[ind];
+						total += data[ind];
 					}
-					out[index] = kernel(neighborhood);
+					out[index] += total;
 
 				}
 			}

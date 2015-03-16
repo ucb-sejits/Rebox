@@ -16,6 +16,9 @@ from ctree.nodes import Project
 from transformers import IndexTransformer
 from ctree.transformations import PyBasicConversions
 
+from order import Ordering
+from z_generator import MulClamp, Add4, Encode
+
 
 from util import encode
 
@@ -52,13 +55,13 @@ class EncodeConversion(LazySpecializedFunction):
         """
 
         # encode for indexing
-        generator = ZGenerator3()
+        generator = generator = Ordering([Add4(), MulClamp(), Encode()])
         subconfig = program_config.args_subconfig
         max_dim = max(subconfig.shape)
         bits_per_dim = int(math.ceil(math.log(max_dim, 2)))
         types = (ctypes.c_uint32, ctypes.c_uint64)
         smallest_enclosing_type = [i for i in types if ctypes.sizeof(i)*8 >= bits_per_dim + 2*subconfig.ndim][0]
-        block = generator.generate_block(subconfig.ndim, bits_per_dim, smallest_enclosing_type)
+        block = generator.generate(subconfig.ndim, bits_per_dim, smallest_enclosing_type)
 
         tree = tree.body[0]
         tree.body = [i for i in tree.body if isinstance(i, ast.For)]  # the For loop is all we actually need
