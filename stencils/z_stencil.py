@@ -127,6 +127,25 @@ class BoxedZOmpStencil(ZStencil):
         loop.pragma = "omp parallel for"
         return files
 
+class Laplacian3DStencil(ZStencil):
+    _weights = np.array([
+        [
+            [0, 0, 0],
+            [0, -1, 0],
+            [0, 0, 0]
+        ],
+        [
+            [0, -1, 0],
+            [-1, 4, -1],
+            [0, -1, 0]
+        ],
+        [
+            [0, 0, 0],
+            [0, -1, 0],
+            [0, -1, 0]
+        ]
+    ])
+
 class Laplacian2DStencil(ZStencil):
     _weights = np.array([
         [0, -1, 0],
@@ -137,11 +156,14 @@ class Laplacian2DStencil(ZStencil):
 class Laplacian2DOmpStencil(Laplacian2DStencil, ZOmpStencil):
     pass
 
+class Laplacian3DOmpStencil(Laplacian3DStencil, ZOmpStencil):
+    pass
+
 if __name__ == "__main__":
     ndim = 3
     shape = (1024,) * ndim
     arr = np.arange(shape[0]**ndim).reshape(shape)
-    l2ds = Laplacian2DOmpStencil()
+    l2ds = Laplacian3DOmpStencil()
     encoder = EncodeConversion()
     decoder = DecodeConversion()
     encoded = encoder(arr).reshape(shape)
