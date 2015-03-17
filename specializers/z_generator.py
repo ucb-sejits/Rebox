@@ -6,14 +6,10 @@ import ctypes
 import sys
 
 #TODO: remove following declaration
-import ctree  # forces loading of type generators. Current bug.
 
 
 from ctree.c.nodes import (ArrayDef, Array, SymbolRef, FunctionDecl, Constant, MultiNode, Assign, BitAnd, BitAndAssign,
-                           BitShR, Deref, BitNot, ArrayRef, BitOr, BitOrAssign, Add, Return, BitShL, Hex, Mul)
-
-from macros import prefetch
-
+                           BitShR, BitNot, ArrayRef, BitOr, BitOrAssign, Add, Return, BitShL, Hex, Mul)
 
 import itertools
 import math

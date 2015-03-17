@@ -11,22 +11,19 @@ import ast
 
 from ctree.jit import LazySpecializedFunction, ConcreteSpecializedFunction
 from ctree.cpp.nodes import CppInclude
-from ctree.c.nodes import MultiNode, CFile, SymbolRef
+from ctree.c.nodes import CFile, SymbolRef
 from ctree.nodes import Project
 from transformers import IndexTransformer
 from ctree.transformations import PyBasicConversions
+from ctree.transforms.declaration_filler import DeclarationFiller
 
 from order import Ordering
-from z_generator import MulClamp, Add4, Encode
+from z_generator import Encode
 
 
-from util import encode
+from specializers.util import encode, indices
 
-def _indices(arr):
-    return product(*[range(i) for i in arr.shape])
-
-
-class EncodeFunction(ConcreteSpecializedFunction):
+class ZFunction(ConcreteSpecializedFunction):
 
     def finalize(self, entry_point_name, project_node, entry_point_typesig):
         self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
@@ -55,7 +52,7 @@ class EncodeConversion(LazySpecializedFunction):
         """
 
         # encode for indexing
-        generator = generator = Ordering([Add4(), MulClamp(), Encode()])
+        generator = generator = Ordering([Encode()])
         subconfig = program_config.args_subconfig
         max_dim = max(subconfig.shape)
         bits_per_dim = int(math.ceil(math.log(max_dim, 2)))
@@ -88,25 +85,23 @@ class EncodeConversion(LazySpecializedFunction):
         proj = Project(transform_result)
         subconfig = program_config.args_subconfig
         argtype = np.ctypeslib.ndpointer(subconfig.dtype, 1, np.multiply.reduce(subconfig.shape))
-        fn = EncodeFunction()
+        fn = ZFunction()
         return fn.finalize("apply", proj, ctypes.CFUNCTYPE(None, argtype, argtype))
 
 
     @staticmethod
     def apply(in_arr):
-        out = np.zeros_like(in_arr)
-        in_arr = in_arr.flatten()
-        for index in _indices(out):
-            out[index] = in_arr[encode(index)]
+        out = np.zeros_like(in_arr).flatten()
+        for index in indices(in_arr):
+            out[encode(index)] = in_arr[index]
         return out
 
 class DecodeConversion(EncodeConversion):
     @staticmethod
     def apply(in_arr):
-        out = np.zeros_like(in_arr)
-        out = out.flatten()
-        for index in _indices(in_arr):
-            out[encode(index)] = in_arr[index]
+        out = np.zeros((8,8))
+        for index in indices(out):
+            out[index] = in_arr[encode(index)]
         return out
 
 
@@ -116,7 +111,7 @@ if __name__ == "__main__":
     encoder = EncodeConversion()
     encoded = encoder(arr)
     decoder = DecodeConversion()
-    other_encoded = encoder(arr)
-    decoded = decoder.apply(encoded.reshape((8, 8)))
-    print(encoded.reshape((8, 8)))
-    print(decoded.reshape((8, 8)))
+    other_encoded = encoder.apply(arr)
+    decoded = decoder.apply(encoded)
+    print(encoded)
+    print(decoded)

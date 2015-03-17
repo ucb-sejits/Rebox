@@ -40,14 +40,24 @@ def generate_neighborhoods(neighborhood, ctype=ctypes.c_int32):
     output.size = length
     return output
 
-def encode(indices):
-    indices = list(indices)
+def encode(indices, ctype=ctypes.c_uint32):
+    indices = [ctype(i) for i in indices]
     indexes = itertools.cycle(range(len(indices)))
     shift = 0
     out = 0
+    #print(indices)
     while any(indices):
         i = next(indexes)
-        out |= (indices[i] & 1) << shift
-        indices[i] >>= 1
+        out |= (indices[i].value & 1) << shift
+        indices[i] = ctype(indices[i].value >> 1)
         shift += 1
-    return out
+    return ctype(out).value
+
+def indices(arr):
+    return itertools.product(*[range(i) for i in arr.shape])
+
+def add(coord, delta):
+    return tuple(i + j for i, j in zip(coord, delta))
+
+def clamp(coord, shape):
+    return tuple(max(0, min(i, dim-1)) for i, dim in zip(coord, shape))
