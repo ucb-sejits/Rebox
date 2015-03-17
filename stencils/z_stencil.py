@@ -27,10 +27,11 @@ class ZStencilFunction(ConcreteSpecializedFunction):
         self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
         return self
 
-    def __call__(self, arr):
-        output = np.zeros_like(arr.flatten())
-        self._c_function(arr.flatten(), output)
-        return output.reshape(arr.shape)
+    def __call__(self, arr, out=None):
+        if out is None:
+            out = np.ndarray(arr.shape, arr.dtype)
+        self._c_function(arr.flatten(), out.flatten())
+        return out
 
 class ZStencil(LazySpecializedFunction):
     _weights = np.ones((1,1,1))  # identity stencil
@@ -39,7 +40,7 @@ class ZStencil(LazySpecializedFunction):
     Subconfig = namedtuple("Subconfig", ["dtype", "ndim", "shape"])
 
     def get_tuning_driver(self):
-        add_param = EnumParameter("add", [z_generator.Add2, z_generator.Add3, z_generator.Add4])
+        add_param = EnumParameter("add", [z_generator.Add3, z_generator.Add4])
         clamp_param = EnumParameter("clamp", [z_generator.LUTClamp, z_generator.MulClamp, z_generator.PartialMulClamp])
         driver = BruteForceTuningDriver(params=[add_param, clamp_param], objective=MinimizeTime())
         return driver
@@ -143,14 +144,18 @@ if __name__ == "__main__":
     l2ds = Laplacian2DOmpStencil()
     encoder = EncodeConversion()
     decoder = DecodeConversion()
-    encoded = encoder(arr)
-    processed = l2ds(encoded.reshape(shape))
+    encoded = encoder(arr).reshape(shape)
+    processed = l2ds(encoded)
     decoded = decoder(processed)
     for i in range(9):
-        print(i)
-        t = time.time()
-        decoder(l2ds(encoded.reshape(shape))).reshape(shape)
-        end = time.time()
-        l2ds.report(time=end - t)
-        print(end - t)
+        try:
+            print(i)
+            t = time.time()
+            l2ds(encoded)
+            end = time.time()
+            l2ds.report(time=end - t)
+            print(end - t)
+        except Exception as e:
+            print(e.message)
+            l2ds.report(time=float('inf'))
     print(l2ds._tuner._best_cfg)

@@ -29,9 +29,10 @@ class ZFunction(ConcreteSpecializedFunction):
         self._c_function = self._compile(entry_point_name, project_node, entry_point_typesig)
         return self
 
-    def __call__(self, arr):
-        output = np.zeros_like(arr.flatten())
-        self._c_function(arr.flatten(), output)
+    def __call__(self, arr, output=None):
+        if output is None:
+            output = np.ndarray(shape=arr.shape, dtype=arr.dtype)
+        self._c_function(arr.flatten(), output.flatten())
         return output
 
 
