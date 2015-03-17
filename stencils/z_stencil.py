@@ -146,12 +146,8 @@ if __name__ == "__main__":
     encoded = encoder(arr)
     processed = l2ds(encoded.reshape(shape))
     decoded = decoder(processed)
-    print(arr)
-    t = time.time()
-    #l2ds.apply(arr)
-    t2 = time.time()
-    print(t2-t)
     for i in range(9):
+        print(i)
         t = time.time()
         decoder(l2ds(encoded.reshape(shape))).reshape(shape)
         end = time.time()
