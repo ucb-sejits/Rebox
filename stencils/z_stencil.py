@@ -1,4 +1,8 @@
+from __future__ import print_function
+
 __author__ = 'nzhang-dev'
+
+
 import itertools
 import numpy as np
 from collections import namedtuple
@@ -6,11 +10,10 @@ import ctypes
 import math
 
 from ctree.jit import LazySpecializedFunction, ConcreteSpecializedFunction
-from ctree.c.nodes import CFile, For
+from ctree.c.nodes import CFile, For, FunctionCall, Assign, SymbolRef, String, Sub
 from ctree.nodes import Project
 from ctree.cpp.nodes import CppInclude
 from ctree.transformations import PyBasicConversions
-from ctree.transforms.declaration_filler import DeclarationFiller
 from ctree.tune import BruteForceTuningDriver, EnumParameter, MinimizeTime
 
 from specializers.transformers import DeltaTransformer, CleanArgsTransformer, ZIndexTransformer
@@ -28,9 +31,13 @@ class ZStencilFunction(ConcreteSpecializedFunction):
         return self
 
     def __call__(self, arr, out=None):
+        t = time.time()
         if out is None:
             out = np.ndarray(arr.shape, arr.dtype)
+        t2 = time.time()
         self._c_function(arr.flatten(), out.flatten())
+        t3 = time.time()
+        print("Out allocation", t2-t, "Calculation", t3-t2)
         return out
 
 class ZStencil(LazySpecializedFunction):
@@ -40,8 +47,8 @@ class ZStencil(LazySpecializedFunction):
     Subconfig = namedtuple("Subconfig", ["dtype", "ndim", "shape"])
 
     def get_tuning_driver(self):
-        add_param = EnumParameter("add", [z_generator.Add3, z_generator.Add4])
-        clamp_param = EnumParameter("clamp", [z_generator.LUTClamp, z_generator.MulClamp, z_generator.PartialMulClamp])
+        add_param = EnumParameter("add", [z_generator.Add4])
+        clamp_param = EnumParameter("clamp", [z_generator.PartialMulClamp])
         driver = BruteForceTuningDriver(params=[add_param, clamp_param], objective=MinimizeTime())
         return driver
 
@@ -50,7 +57,6 @@ class ZStencil(LazySpecializedFunction):
         return self.Subconfig(A.dtype, A.ndim, A.shape)
 
     def transform(self, tree, program_config):
-        print(program_config)
         aux_functions = [init() for init in program_config.tuner_subconfig.values()]
         auxiliary_codegen = z_generator.Ordering(aux_functions)
         subconfig = program_config.args_subconfig
@@ -58,6 +64,7 @@ class ZStencil(LazySpecializedFunction):
         bits_per_dim = int(math.ceil(math.log(max_dim, 2)))
 
         aux_file = CFile(name="aux", body=auxiliary_codegen.generate(subconfig.ndim, bits_per_dim, ctypes.c_uint64))
+
 
         tree = tree.body[0]
         tree.args.args.pop(0)  # remove self
@@ -68,9 +75,18 @@ class ZStencil(LazySpecializedFunction):
         c_tree = DeltaTransformer({"self": self}, ndim=len(subconfig.shape)).visit(c_tree)
         c_tree.defn.pop()
         includes = [
+            CppInclude("stdio.h"),
             CppInclude("stdint.h"),
             CppInclude("aux.c", angled_brackets=False)
         ]
+        timing_start = Assign(SymbolRef("s", ctypes.c_double()), FunctionCall(SymbolRef("omp_get_wtime")))
+        timing_end = Assign(SymbolRef("e", ctypes.c_double()), FunctionCall(SymbolRef("omp_get_wtime")))
+
+        c_tree.defn.insert(0, timing_start)
+        c_tree.defn.append(timing_end)
+        print_time = FunctionCall(SymbolRef("printf"), [String("Time:%f\\n"), Sub(SymbolRef("e"), SymbolRef("s"))])
+        c_tree.defn.append(print_time)
+
         param_type = np.ctypeslib.ndpointer(subconfig.dtype, 1, np.multiply.reduce(subconfig.shape))
         for param in c_tree.params:
             param.type = param_type()
@@ -116,6 +132,9 @@ class ZOmpStencil(ZStencil):
         main_file.body.insert(0, CppInclude("omp.h"))
         loop = main_file.find(For)
         loop.pragma = "omp parallel for"
+        for f in files:
+            f.config_target = 'omp'
+        # print(main_file)
         return files
 
 class BoxedZOmpStencil(ZStencil):
@@ -167,13 +186,12 @@ if __name__ == "__main__":
     encoder = EncodeConversion()
     decoder = DecodeConversion()
     encoded = encoder(arr).reshape(shape)
-    processed = l2ds(encoded)
-    decoded = decoder(processed)
-    for i in range(9):
+    out = np.ndarray(shape, arr.dtype)
+    for i in range(1):
         try:
             print(i)
             t = time.time()
-            l2ds(encoded)
+            l2ds(encoded, out)
             end = time.time()
             l2ds.report(time=end - t)
             print(end - t)
