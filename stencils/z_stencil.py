@@ -172,17 +172,23 @@ class Laplacian2DStencil(ZStencil):
         [0, -1, 0]
     ])
 
+class Sum3DStencil(ZStencil):
+    _weights = np.ones([3,3,3], dtype=np.int)
+
 class Laplacian2DOmpStencil(Laplacian2DStencil, ZOmpStencil):
     pass
 
 class Laplacian3DOmpStencil(Laplacian3DStencil, ZOmpStencil):
     pass
 
+class Sum3DOmpStencil(Sum3DStencil, ZOmpStencil):
+    pass
+
 if __name__ == "__main__":
     ndim = 3
     shape = (1024,) * ndim
     arr = np.arange(shape[0]**ndim).reshape(shape)
-    l2ds = Laplacian3DOmpStencil()
+    sum_stencil = Sum3DOmpStencil()
     encoder = EncodeConversion()
     decoder = DecodeConversion()
     #encoded = encoder(arr).reshape(shape)
@@ -190,8 +196,8 @@ if __name__ == "__main__":
     for i in range(1):
         print(i)
         t = time.time()
-        l2ds(arr, out)
+        sum_stencil(arr, out)
         end = time.time()
-        l2ds.report(time=end - t)
+        sum_stencil.report(time=end - t)
         print(end - t)
-    print(l2ds._tuner._best_cfg)
+    print(sum_stencil._tuner._best_cfg)
