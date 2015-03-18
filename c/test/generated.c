@@ -8,7 +8,7 @@ void apply(long* arr, long* out) {
     #pragma omp parallel for
     for (size_t index = 0lu; index < 1073741824u; index ++) {
         
-        long total;
+        long total = 0;
         long neg = 0;
 
         

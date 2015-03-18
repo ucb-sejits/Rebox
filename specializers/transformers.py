@@ -112,17 +112,21 @@ class DeltaTransformer(ast.NodeTransformer):
             return node
         obj = self.namespace[node.iter.value.id]
         deltas = obj.deltas
+        unique_weights = list({i for i in obj.weights.flatten() if i})
+        print("unique weights:", unique_weights)
 
         sym = SymbolRef(node.target.id)
         output = MultiNode([
             SymbolRef(sym.name, sym_type=ctypes.c_uint64())
         ])
+
         for delta in deltas:
             weight = Number(obj.weights[delta], ctype=ctypes.c_int64)
             renamer = DeltaRenamer(sym.name, weight)
-            output.body.append(Assign(sym, Number(encode(delta, ctype=ctypes.c_uint64), ctype=ctypes.c_uint64)))
+            symbol_replacer = SymbolReplacer(sym.name, Number(encode(delta, ctype=ctypes.c_uint64), ctype=ctypes.c_uint64))
             body_copy = MultiNode(body=copy.deepcopy(body))
             body_copy = renamer.visit(body_copy)
+            body_copy = symbol_replacer.visit(body_copy)
             output.body.append(body_copy)
         return output
 
@@ -142,6 +146,16 @@ class DeltaRenamer(ast.NodeTransformer):
             return self.target
         except AttributeError:
             pass
+        return node
+
+class SymbolReplacer(ast.NodeTransformer):
+    def __init__(self, target, replacement):
+        self.target = target
+        self.replacement = replacement
+
+    def visit_SymbolRef(self, node):
+        if node.name == self.target:
+            return self.replacement
         return node
 
 class CleanArgsTransformer(ast.NodeTransformer):
