@@ -10,13 +10,14 @@ import ctypes
 import math
 
 from ctree.jit import LazySpecializedFunction, ConcreteSpecializedFunction
-from ctree.c.nodes import CFile, For, FunctionCall, Assign, SymbolRef, String, Sub
+from ctree.c.nodes import CFile, For, FunctionCall, Assign, SymbolRef, String, Sub, Return, Block
 from ctree.nodes import Project
 from ctree.cpp.nodes import CppInclude
 from ctree.transformations import PyBasicConversions
 from ctree.tune import BruteForceTuningDriver, EnumParameter, MinimizeTime
 
-from specializers.transformers import DeltaTransformer, CleanArgsTransformer, ZIndexTransformer
+from specializers.transformers import (DeltaTransformer, CleanArgsTransformer, ZIndexTransformer, ReturnRemover,
+                                       AddSimplifier, ClampSimplifier, MulSimplifier)
 from specializers import z_generator
 from specializers.util import indices, add, clamp
 
@@ -73,26 +74,22 @@ class ZStencil(LazySpecializedFunction):
         tree.body.pop(0)  # removes initialization of out
         c_tree = PyBasicConversions().visit(tree)
         c_tree = CleanArgsTransformer().visit(c_tree)
-        c_tree = ZIndexTransformer({"arr":arr}, ctype=ctypes.c_uint64).visit(c_tree)
+        c_tree = ZIndexTransformer({"arr": arr}, ctype=ctypes.c_uint64).visit(c_tree)
         c_tree = DeltaTransformer({"self": self}, ndim=len(subconfig.shape)).visit(c_tree)
-        c_tree.defn.pop()
+        c_tree = ReturnRemover().visit(c_tree)
+        c_tree = AddSimplifier().visit(c_tree)
+        c_tree = MulSimplifier().visit(c_tree)
+        c_tree = ClampSimplifier().visit(c_tree)
+
         includes = [
             CppInclude("stdio.h"),
             CppInclude("stdint.h"),
             CppInclude("aux.c", angled_brackets=False)
         ]
-        timing_start = Assign(SymbolRef("s", ctypes.c_double()), FunctionCall(SymbolRef("omp_get_wtime")))
-        timing_end = Assign(SymbolRef("e", ctypes.c_double()), FunctionCall(SymbolRef("omp_get_wtime")))
-
-        c_tree.defn.insert(0, timing_start)
-        c_tree.defn.append(timing_end)
-        print_time = FunctionCall(SymbolRef("printf"), [String("Time:%f\\n"), Sub(SymbolRef("e"), SymbolRef("s"))])
-        c_tree.defn.append(print_time)
-
         param_type = np.ctypeslib.ndpointer(subconfig.dtype, 1, np.multiply.reduce(subconfig.shape))
         for param in c_tree.params:
             param.type = param_type()
-        main_file = CFile(body = includes + [c_tree])
+        main_file = CFile(body=includes + [c_tree])
         return [aux_file, main_file]
 
     def finalize(self, transform_result, program_config):
@@ -121,7 +118,7 @@ class ZStencil(LazySpecializedFunction):
     def apply(self, arr, out=None):
         out = np.zeros_like(arr) if out is None else out
         for index in indices(arr):
-            total = 0.0
+            total = 0
             for delta in self.deltas:
                 total += arr[clamp(add(index, delta), arr.shape)] * self.weights[delta]
             out[index] = total

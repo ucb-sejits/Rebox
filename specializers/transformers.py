@@ -4,14 +4,10 @@ import ctypes
 import copy
 import numpy as np
 
-from ctree.frontend import dump
-
-from functools import reduce
-
-import itertools
-
 from ctree.c.nodes import (MultiNode, For, SymbolRef, Assign, Number, ArrayDef, PostInc, Array, Lt, String, Op,
-                            Mul, Add, BinaryOp)
+                            Mul, Add)
+
+import numbers
 
 from util import encode
 
@@ -148,6 +144,58 @@ class DeltaRenamer(ast.NodeTransformer):
             pass
         return node
 
+class AddSimplifier(ast.NodeTransformer):
+    def visit_BinaryOp(self, node):
+        node.left = self.visit(node.left)
+        node.right = self.visit(node.right)
+        if isinstance(node.op, Op.Add):
+            for cur, opposite in ((node.left, node.right), (node.right, node.left)):
+                if isinstance(cur, Number) and cur.value == 0:
+                    return opposite
+            return node
+        return node
+
+    def visit_FunctionCall(self, node):
+        print(node.func.name)
+        node.args = [self.visit(arg) for arg in node.args]
+        if node.func.name == 'add':
+            for cur, opposite in (node.args, node.args[::-1]):
+                if isinstance(cur, Number) and cur.value == 0:
+                    return opposite
+            return node
+        return node
+
+class ClampSimplifier(ast.NodeTransformer):
+    """
+    Don't have to clamp if you're operating on a known valid expression
+    """
+    def visit_FunctionCall(self, node):
+        node.args = [self.visit(arg) for arg in node.args]
+        print(node.func.name)
+        if node.func.name == 'clamp':
+            if isinstance(node.args[0], (Number, SymbolRef)):
+                return node.args[0]
+        return node
+
+class MulSimplifier(ast.NodeTransformer):
+    """
+    x*0 = 0, x*1 = x
+    """
+    def visit_BinaryOp(self, node):
+        node.left = self.visit(node.left)
+        node.right = self.visit(node.right)
+        if isinstance(node.op, Op.Mul):
+            for cur, opposite in ((node.left, node.right), (node.right, node.left)):
+                print(type(cur), type(opposite))
+                if isinstance(cur, Number):
+                    if cur.value == 1:
+                        return opposite
+                    if cur.value == 0:
+                        return Number(0)
+            return node
+        return node
+
+
 class SymbolReplacer(ast.NodeTransformer):
     def __init__(self, target, replacement):
         self.target = target
@@ -165,6 +213,10 @@ class CleanArgsTransformer(ast.NodeTransformer):
             return node
         node.args = [node.args[0]]
         return node
+
+class ReturnRemover(ast.NodeTransformer):
+    def visit_Return(self, node):
+        return None
 
 
 class CompoundTransformer(ast.NodeTransformer):
