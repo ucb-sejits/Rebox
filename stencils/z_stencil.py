@@ -35,9 +35,11 @@ class ZStencilFunction(ConcreteSpecializedFunction):
         if out is None:
             out = np.ndarray(arr.shape, arr.dtype)
         t2 = time.time()
-        self._c_function(arr.flatten(), out.flatten())
+        flattened = [arr.ravel(), out.ravel()]
         t3 = time.time()
-        print("Out allocation", t2-t, "Calculation", t3-t2)
+        self._c_function(*flattened)
+        t4 = time.time()
+        print("Out allocation", t2-t, "Flatten", t3-t2, "Calculation", t4-t3)
         return out
 
 class ZStencil(LazySpecializedFunction):
