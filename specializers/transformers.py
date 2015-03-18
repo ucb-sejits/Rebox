@@ -156,7 +156,6 @@ class AddSimplifier(ast.NodeTransformer):
         return node
 
     def visit_FunctionCall(self, node):
-        print(node.func.name)
         node.args = [self.visit(arg) for arg in node.args]
         if node.func.name == 'add':
             for cur, opposite in (node.args, node.args[::-1]):
@@ -171,7 +170,6 @@ class ClampSimplifier(ast.NodeTransformer):
     """
     def visit_FunctionCall(self, node):
         node.args = [self.visit(arg) for arg in node.args]
-        print(node.func.name)
         if node.func.name == 'clamp':
             if isinstance(node.args[0], (Number, SymbolRef)):
                 return node.args[0]
@@ -186,7 +184,6 @@ class MulSimplifier(ast.NodeTransformer):
         node.right = self.visit(node.right)
         if isinstance(node.op, Op.Mul):
             for cur, opposite in ((node.left, node.right), (node.right, node.left)):
-                print(type(cur), type(opposite))
                 if isinstance(cur, Number):
                     if cur.value == 1:
                         return opposite
