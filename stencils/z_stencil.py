@@ -119,7 +119,7 @@ class ZStencil(LazySpecializedFunction):
     def apply(self, arr, out=None):
         out = np.zeros_like(arr) if out is None else out
         for index in indices(arr):
-            total = 0
+            total = 0.0
             for delta in self.deltas:
                 total += arr[clamp(add(index, delta), arr.shape)] * self.weights[delta]
             out[index] = total
@@ -187,7 +187,7 @@ class Sum3DOmpStencil(Sum3DStencil, ZOmpStencil):
 if __name__ == "__main__":
     ndim = 3
     shape = (1024,) * ndim
-    arr = np.arange(shape[0]**ndim).reshape(shape)
+    arr = np.arange(shape[0]**ndim, dtype=np.float).reshape(shape)
     sum_stencil = Sum3DOmpStencil()
     encoder = EncodeConversion()
     decoder = DecodeConversion()
