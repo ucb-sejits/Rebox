@@ -11,8 +11,8 @@ void apply(double* arr, double* out) {
 
         
         size_t delta;
-        
-        total += arr[clamp(add(index, 18446744073709551615lu))];
+        uint64_t el = clamp(add(index, 18446744073709551615lu));
+        total += arr[el];
 
         
         total += arr[clamp(add(index, 13176245766935394011lu))];
@@ -80,6 +80,7 @@ void apply(double* arr, double* out) {
         
         total += arr[clamp(add(index, 1lu))];
 
+        __builtin_prefetch(&arr[add(el, 1lu)]);
         
         total += arr[clamp(add(index, 5lu))];
 
@@ -91,7 +92,6 @@ void apply(double* arr, double* out) {
 
         
         total += arr[clamp(add(index, 7lu))];
-
 
         
         out[index] = total;
