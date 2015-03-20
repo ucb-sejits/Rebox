@@ -11,7 +11,7 @@
 #define NEIGHBORS 27
 #endif
 
-uint32_t kernel(uint32_t values[])
+double kernel(double values[])
 {
 
 	uint32_t result = 0;
@@ -22,7 +22,7 @@ uint32_t kernel(uint32_t values[])
 	return result;
 }
 
-void dump(uint32_t values[], uint32_t row_len, uint32_t rows)
+void dump(double values[], uint32_t row_len, uint32_t rows)
 {
 	for(uint32_t j = 0; j < rows; j++)
 	{
