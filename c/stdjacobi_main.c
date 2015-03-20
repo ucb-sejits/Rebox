@@ -23,8 +23,8 @@ int main(int argc, char* argv[])
 
 
 	//printf("Allocating problem\n");
-	uint64_t array_size = 9;
-	double iterations = 1;
+	uint64_t array_size = 10;
+	double iterations = 5;
 	uint64_t log_2_box_dim = 4;
 	if (argc > 1)
 	{
