@@ -578,6 +578,14 @@ class PartialMulClamp(FunctionGenerator):
 
         return FunctionGenerator.GeneratedResult(decl)
 
+class BitMergeAdd(FunctionGenerator):
+    """
+    Uses algorithm given by http://graphics.stanford.edu/~seander/bithacks.html#MaskedMerge for complex masked merges
+    """
+    name = "add"
+    def generate(self, ndim, bits_per_dim, ctype):
+        pass
+
 if __name__ == "__main__":
     #print(sys.argv)
     ndim = 3

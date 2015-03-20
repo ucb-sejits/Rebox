@@ -24,7 +24,7 @@ int main(int argc, char* argv[])
 
 	//printf("Allocating problem\n");
 	uint64_t array_size = 9;
-	uint32_t iterations = 1;
+	double iterations = 1;
 	uint64_t log_2_box_dim = 4;
 	if (argc > 1)
 	{
@@ -46,8 +46,8 @@ int main(int argc, char* argv[])
 		actual_size *= array_size;
 	}
 	//printf("Malloccing: %d\n", actual_size);
-	uint32_t* data = (uint32_t*) malloc(sizeof(uint32_t) * actual_size);
-	uint32_t* out = (uint32_t*) malloc(sizeof(uint32_t) * actual_size);
+	double* data = (double*) malloc(sizeof(double) * actual_size);
+	double* out = (double*) malloc(sizeof(double) * actual_size);
 	//printf("Malloc'd\n");
 	////printf("%ul\t%ul\n", data, out);
 	if(!out || !data)
@@ -68,8 +68,8 @@ int main(int argc, char* argv[])
 	//printf("Malloc succeeded\n");
 	uint64_t neighborhood_deltas[NEIGHBORS][NDIM] = {{-1L, -1L, -1L}, {-1L, -1L, 0L}, {-1L, -1L, 1L}, {-1L, 0L, -1L}, {-1L, 0L, 0L}, {-1L, 0L, 1L}, {-1L, 1L, -1L}, {-1L, 1L, 0L}, {-1L, 1L, 1L}, {0L, -1L, -1L}, {0L, -1L, 0L}, {0L, -1L, 1L}, {0L, 0L, -1L}, {0L, 0L, 0L}, {0L, 0L, 1L}, {0L, 1L, -1L}, {0L, 1L, 0L}, {0L, 1L, 1L}, {1L, -1L, -1L}, {1L, -1L, 0L}, {1L, -1L, 1L}, {1L, 0L, -1L}, {1L, 0L, 0L}, {1L, 0L, 1L}, {1L, 1L, -1L}, {1L, 1L, 0L}, {1L, 1L, 1L}};
 	//printf("Allocation succeeded\n");
-	uint32_t kb = 1 << log_2_box_dim;
-	uint32_t jb = kb;
+	double kb = 1 << log_2_box_dim;
+	double jb = kb;
 	//printf("Box size: %u\n", kb);
 	double start = omp_get_wtime();
 	for (int iter = 0; iter < iterations; iter++)
@@ -86,7 +86,7 @@ int main(int argc, char* argv[])
 						for (uint64_t i=0;i<array_size;i++)
 						{
 							////printf("%u\t%u\t%u\n", i, j, k);
-							uint32_t neighborhood[NEIGHBORS];
+							double neighborhood[NEIGHBORS];
 							for (char nindex = 0; nindex < NEIGHBORS; nindex++)
 							{
 								int64_t ni = neighborhood_deltas[nindex][0] + i;
@@ -96,7 +96,7 @@ int main(int argc, char* argv[])
 								nj = sClamp(nj);
 								nk = sClamp(nk);
 								////printf("%u\t%u\t%u\n", ni, nj, nk);
-								uint32_t d = data[encode(ni, nj, nk)];
+								double d = data[encode(ni, nj, nk)];
 								////printf("%u\t%u\t%u\t%u\n", ni, nj, nk, d);
 								neighborhood[nindex] = d;
 							}
