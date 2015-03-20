@@ -7,7 +7,7 @@ __attribute__ ((const)) static inline size_t clamp(size_t code) {
 	size_t overflow = (code >> 0x1eu) & underflow_remainder;
 	underflow_remainder *= 0x9249249249249249Lu;
 	overflow *= 0x9249249249249249Lu;
-	return (code & underflow_remainder) | overflow;
+	return ((code & underflow_remainder) | overflow) & 0x3fffffffu;
 //    code &= ~ (0x9249249249249249Lu * (code >> 0x3cu & 0x7u));
 //    size_t mask = code >> 0x1eu & 0x3fffffffu;
 //    code |= 0x9249249u * (mask & 0x7u);
