@@ -68,8 +68,8 @@ int main(int argc, char* argv[])
 	//printf("Malloc succeeded\n");
 	uint64_t neighborhood_deltas[NEIGHBORS][NDIM] = {{-1L, -1L, -1L}, {-1L, -1L, 0L}, {-1L, -1L, 1L}, {-1L, 0L, -1L}, {-1L, 0L, 0L}, {-1L, 0L, 1L}, {-1L, 1L, -1L}, {-1L, 1L, 0L}, {-1L, 1L, 1L}, {0L, -1L, -1L}, {0L, -1L, 0L}, {0L, -1L, 1L}, {0L, 0L, -1L}, {0L, 0L, 0L}, {0L, 0L, 1L}, {0L, 1L, -1L}, {0L, 1L, 0L}, {0L, 1L, 1L}, {1L, -1L, -1L}, {1L, -1L, 0L}, {1L, -1L, 1L}, {1L, 0L, -1L}, {1L, 0L, 0L}, {1L, 0L, 1L}, {1L, 1L, -1L}, {1L, 1L, 0L}, {1L, 1L, 1L}};
 	//printf("Allocation succeeded\n");
-	double kb = 1 << log_2_box_dim;
-	double jb = kb;
+	uint32_t kb = 1 << log_2_box_dim;
+	uint32_t jb = kb;
 	//printf("Box size: %u\n", kb);
 	double start = omp_get_wtime();
 	for (int iter = 0; iter < iterations; iter++)
