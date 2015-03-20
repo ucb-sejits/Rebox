@@ -8,7 +8,6 @@ void apply(float* arr, float* out) {
     for (size_t index = 0lu; index < 1073741824u; index ++) {
         
         float total = 0;
-        uint64_t pf = clamp(add(index, 10540996613548315209lu));
         
         size_t delta;
         total += arr[clamp(add(index, 18446744073709551615lu))];
@@ -23,7 +22,8 @@ void apply(float* arr, float* out) {
         total += arr[clamp(add(index, 15811494920322472813lu))];
 
         
-        total += arr[pf];
+        total += arr[clamp(add(index, 10540996613548315209lu))];
+
 
         
         total += arr[clamp(add(index, 10540996613548315213lu))];
@@ -79,7 +79,6 @@ void apply(float* arr, float* out) {
         
         total += arr[clamp(add(index, 1lu))];
 
-        __builtin_prefetch(&arr[pf]);
         
         total += arr[clamp(add(index, 5lu))];
 
