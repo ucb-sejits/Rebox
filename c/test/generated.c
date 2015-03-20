@@ -5,7 +5,7 @@
 #include "aux.c"
 void apply(float* arr, float* out) {
     #pragma omp parallel for
-    for (size_t index = 0lu; __builtin_expect(index < 1073741824u, 0); index ++) {
+    for (size_t index = 0lu; index < 1073741824u; index ++) {
         
         float total = 0;
         uint64_t pf = clamp(add(index, 10540996613548315209lu));
