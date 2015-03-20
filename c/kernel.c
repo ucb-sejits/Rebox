@@ -11,7 +11,7 @@
 #define NEIGHBORS 27
 #endif
 
-double kernel(double values[])
+float kernel(float values[])
 {
 
 	uint32_t result = 0;

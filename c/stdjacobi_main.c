@@ -9,6 +9,7 @@
 #include <time.h>
 #include <stdlib.h>
 #include <omp.h>
+#include <sys/mman.h>
 
 #define NDIM 3
 
@@ -46,8 +47,11 @@ int main(int argc, char* argv[])
 		actual_size *= array_size;
 	}
 	//printf("Malloccing: %d\n", actual_size);
-	double* data = (double*) malloc(sizeof(double) * actual_size);
-	double* out = (double*) malloc(sizeof(double) * actual_size);
+	size_t s = sizeof(float) * actual_size;
+	float* data = (float*) malloc(s);
+	float* out = (float*) malloc(s);
+	mlock(data, s);
+	mlock(out, s);
 	//printf("Malloc'd\n");
 	////printf("%ul\t%ul\n", data, out);
 	if(!out || !data)
@@ -86,7 +90,7 @@ int main(int argc, char* argv[])
 						for (uint64_t i=0;i<array_size;i++)
 						{
 							////printf("%u\t%u\t%u\n", i, j, k);
-							double neighborhood[NEIGHBORS];
+							float neighborhood[NEIGHBORS];
 							#pragma omp simd
 							for (char nindex = 0; nindex < NEIGHBORS; nindex++)
 							{
@@ -97,7 +101,7 @@ int main(int argc, char* argv[])
 								nj = sClamp(nj);
 								nk = sClamp(nk);
 								////printf("%u\t%u\t%u\n", ni, nj, nk);
-								double d = data[encode(ni, nj, nk)];
+								float d = data[encode(ni, nj, nk)];
 								////printf("%u\t%u\t%u\t%u\n", ni, nj, nk, d);
 								neighborhood[nindex] = d;
 							}
@@ -111,6 +115,8 @@ int main(int argc, char* argv[])
 	}
 	double end = omp_get_wtime();
 	//dump(out, array_size, 2);
+	munlock(out, s);
+	munlock(data, s);
 	free(data);
 	free(out);
 	float elapsed = ((end - start));
