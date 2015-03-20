@@ -87,6 +87,7 @@ int main(int argc, char* argv[])
 						{
 							////printf("%u\t%u\t%u\n", i, j, k);
 							double neighborhood[NEIGHBORS];
+							#pragma omp simd
 							for (char nindex = 0; nindex < NEIGHBORS; nindex++)
 							{
 								int64_t ni = neighborhood_deltas[nindex][0] + i;
