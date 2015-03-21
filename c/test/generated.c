@@ -5,10 +5,12 @@
 #include <sched.h>
 #include "aux.c"
 
+#ifndef num_teams
+#define num_teams 2
+#endif
 
 void apply(float* arr, float* out) {
 	const uint64_t size = 1 << 30;
-	const uint64_t num_teams = 2;
 	const uint64_t block_size = (size / num_teams);
 	const uint64_t threads = omp_get_max_threads();
 	const uint64_t team_split = threads / num_teams;
