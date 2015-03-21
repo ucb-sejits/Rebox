@@ -19,13 +19,13 @@ int main (int argc, const char* argv[])
 		uint64_t ind[] = {0, 0, i};
 		in[encode(ind)] = 1;
 	}
+
 	double t = omp_get_wtime();
 	for (int i = 0; i < 5; i++)
 	{
 		apply(in, out);
 	}
 	double t2 = omp_get_wtime();
-	printf("\n");
 	munlock(in, size);
 	munlock(out, size);
 	free(in);
