@@ -24,27 +24,27 @@ int main (int argc, const char* argv[])
 	float* tmp;
 	mlock(in, size);
 	mlock(out, size);
-	for (uint64_t i = 0; i < 1024; i++)
-	{
-		uint64_t ind[] = {0, 0, i};
-		in[encode(ind)] = 1;
-	}
-	for (int i = 0; i < 1024; i++)
-	{
-			uint64_t ind[] = {0, 0, i};
+//	for (uint64_t i = 0; i < 1024; i++)
+//	{
+//		uint64_t ind[] = {0, 0, i};
+//		in[encode(ind)] = 1;
+//	}
+//	for (int i = 0; i < 1024; i++)
+//	{
+//			uint64_t ind[] = {0, 0, i};
 			//printf("%f\t", in[encode(ind)]);
-	}
+//	}
 	double t = omp_get_wtime();
 	for (int i = 0; i < 5; i++)
 	{
 		apply(in, out);
 	}
 	double t2 = omp_get_wtime();
-	for(uint64_t i = 0; i < 1024; i++)
-	{
-		uint64_t ind[] = {0, 0, i};
-		printf("%f\t", out[encode(ind)]);
-	}
+//	for(uint64_t i = 0; i < 1024; i++)
+//	{
+//		uint64_t ind[] = {0, 0, i};
+//		printf("%f\t", out[encode(ind)]);
+//	}
 	printf("\n");
 	munlock(in, size);
 	munlock(out, size);

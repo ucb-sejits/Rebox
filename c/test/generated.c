@@ -4,20 +4,9 @@
 #include <stdint.h>
 #include "aux.c"
 
-#ifndef bits
-#define bits 3
-#endif
-
 void apply(float* arr, float* out) {
-	printf("Bits: %d\n", bits);
-	uint32_t nt = omp_get_max_threads();
-	static const uint32_t log_2_dim = 30;
-	static const uint64_t size = 1 << log_2_dim;
-	static const uint64_t partition_bits = bits;
-	static const uint32_t partition_shift = log_2_dim - partition_bits;
-    #pragma omp parallel num_threads(1 << partition_bits)
-    for (uint64_t ind = 0; ind < (1 << partition_shift); ind += 1) {
-    	uint64_t index = omp_get_thread_num() << partition_shift | ind;
+    #pragma omp parallel for
+    for (size_t index = 0lu; index < 1073741824u; index ++) {
         float total = 0;
 
         size_t delta;
