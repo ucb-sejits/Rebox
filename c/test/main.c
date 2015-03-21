@@ -29,11 +29,11 @@ int main (int argc, const char* argv[])
 	double t2 = omp_get_wtime();
 	munlock(in, size);
 	munlock(out, size);
-//	for(uint64_t i = 0; i < 1024; i++)
-//	{
-//		uint64_t ind[] = {0, 0, i};
-//		printf("%f\t", out[encode(ind)]);
-//	}
+	for(uint64_t i = 0; i < 1024; i++)
+	{
+		uint64_t ind[] = {0, 0, i};
+		printf("%f\t", out[encode(ind)]);
+	}
 	free(in);
 	free(out);
 	printf("Time: %f\n", t2-t);

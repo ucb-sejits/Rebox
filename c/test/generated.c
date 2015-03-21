@@ -2,23 +2,27 @@
 #include <omp.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <sched.h>
 #include "aux.c"
+
 
 void apply(float* arr, float* out) {
 	const uint64_t size = 1 << 30;
-    #pragma omp target teams num_teams(2)
+	const uint64_t num_teams = 2;
+	const uint64_t block_size = (size / num_teams);
+	const uint64_t threads = omp_get_max_threads();
+	const uint64_t team_split = threads / num_teams;
+	omp_set_dynamic(0);
+	#pragma omp parallel num_threads(threads)
 	{
-		int team_id = omp_get_team_num();
-		const int num_teams = omp_get_num_teams();
-		printf("Num teams:%d\n", num_teams);
-		const uint64_t block_size = (size / num_teams);
-		const uint64_t threads = omp_get_max_threads() / num_teams;
+		const uint64_t team_id = omp_get_thread_num() / team_split;
 		const uint64_t start = block_size * team_id;
 		const uint64_t end = start + block_size;
-		#pragma omp parallel for num_threads(threads)
-		for (uint64_t index = start; index < end; index ++) {
+#ifdef __linux__
+		printf("CPU: %d\tteam: %d\tID: %d\tStart: %d\tEnd: %d\n", sched_getcpu(), team_id, omp_get_thread_num(), start, end);
+#endif
+		for (uint64_t index = start + (omp_get_thread_num() % team_split); index < end; index += team_split) {
 			float total = 0;
-			size_t delta;
 			total += arr[clamp(add(index, 18446744073709551615lu))];
 
 
