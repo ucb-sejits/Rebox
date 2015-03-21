@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include "aux.c"
+
 void apply(float* arr, float* out) {
     #pragma omp parallel for
     for (size_t index = 0lu; index < 1073741824u; index ++) {
@@ -92,6 +93,5 @@ void apply(float* arr, float* out) {
 
 
         out[index] = total;
-
     };
 };

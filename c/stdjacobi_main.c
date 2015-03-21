@@ -90,7 +90,6 @@ int main(int argc, char* argv[])
 						for (uint64_t i=0;i<array_size;i++)
 						{
 							////printf("%u\t%u\t%u\n", i, j, k);
-							float neighborhood[NEIGHBORS];
 							#pragma omp simd
 							for (char nindex = 0; nindex < NEIGHBORS; nindex++)
 							{
@@ -103,9 +102,8 @@ int main(int argc, char* argv[])
 								////printf("%u\t%u\t%u\n", ni, nj, nk);
 								float d = data[encode(ni, nj, nk)];
 								////printf("%u\t%u\t%u\t%u\n", ni, nj, nk, d);
-								neighborhood[nindex] = d;
+								out[encode(i, j, k)] += d;
 							}
-							out[encode(i, j, k)] = kernel(neighborhood);
 							////printf("Finished kernel\n");
 						}
 					}
