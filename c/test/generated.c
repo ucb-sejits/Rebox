@@ -6,7 +6,6 @@
 void apply(float* arr, float* out) {
     #pragma omp parallel for
     for (size_t index = 0lu; index < 1073741824u; index ++) {
-
         float total = 0;
 
         size_t delta;
