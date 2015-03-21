@@ -1,7 +1,10 @@
 #include "generated.c"
 #include <stdio.h>
- #include <sys/mman.h>
+#include <sys/mman.h>
 
+#ifndef threads
+#define threads omp_get_max_threads()
+#endif
 
 int main (int argc, const char* argv[])
 {
@@ -11,8 +14,6 @@ int main (int argc, const char* argv[])
 	float* tmp;
 	mlock(in, size);
 	mlock(out, size);
-	omp_set_dynamic(0);
-	omp_set_num_threads(omp_get_max_threads());
 	#pragma omp parallel for
 	for (uint64_t i = 0; i < 1024; i++)
 	{
@@ -28,6 +29,11 @@ int main (int argc, const char* argv[])
 	double t2 = omp_get_wtime();
 	munlock(in, size);
 	munlock(out, size);
+//	for(uint64_t i = 0; i < 1024; i++)
+//	{
+//		uint64_t ind[] = {0, 0, i};
+//		printf("%f\t", out[encode(ind)]);
+//	}
 	free(in);
 	free(out);
 	printf("Time: %f\n", t2-t);
