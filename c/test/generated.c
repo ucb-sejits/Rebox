@@ -9,6 +9,7 @@
 #endif
 
 void apply(float* arr, float* out) {
+	printf("Bits: %d\n", bits);
 	uint32_t nt = omp_get_max_threads();
 	static const uint32_t log_2_dim = 30;
 	static const uint64_t size = 1 << log_2_dim;
