@@ -21,7 +21,9 @@ void apply(float* arr, float* out) {
 		const uint64_t start = block_size * team_id;
 		const uint64_t end = start + block_size;
 #ifdef __linux__
+#ifdef VERBOSE
 		printf("CPU: %d\tteam: %d\tID: %d\tStart: %d\tEnd: %d\n", sched_getcpu(), team_id, omp_get_thread_num(), start, end);
+#endif
 #endif
 		for (uint64_t index = start + (omp_get_thread_num() % team_split); index < end; index += team_split) {
 			float total = 0;
