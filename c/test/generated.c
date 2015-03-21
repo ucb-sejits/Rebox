@@ -4,95 +4,98 @@
 #include <stdint.h>
 #include "aux.c"
 void apply(float* arr, float* out) {
-    #pragma omp parallel for
-    for (size_t index = 0lu; index < 1073741824u; index ++) {
-        
-        float total = 0;
-        
-        size_t delta;
-        total += arr[clamp(add(index, 18446744073709551615lu))];
 
-        
-        total += arr[clamp(add(index, 13176245766935394011lu))];
-
-        
-        total += arr[clamp(add(index, 13176245766935394015lu))];
-
-        
-        total += arr[clamp(add(index, 15811494920322472813lu))];
-
-        
-        total += arr[clamp(add(index, 10540996613548315209lu))];
+	#pragma omp parallel for collapse(2)
+	for (int tid = 0; tid < 8; tid++)
+	{
+		for (size_t index = tid; index < 1073741824u; index += 8) {
+			float total = 0;
+			size_t delta;
+			total += arr[clamp(add(index, 18446744073709551615lu))];
 
 
-        
-        total += arr[clamp(add(index, 10540996613548315213lu))];
+			total += arr[clamp(add(index, 13176245766935394011lu))];
 
-        
-        total += arr[clamp(add(index, 15811494920322472815lu))];
 
-        
-        total += arr[clamp(add(index, 10540996613548315211lu))];
+			total += arr[clamp(add(index, 13176245766935394015lu))];
 
-        
-        total += arr[clamp(add(index, 10540996613548315215lu))];
 
-        
-        total += arr[clamp(add(index, 7905747460161236406lu))];
+			total += arr[clamp(add(index, 15811494920322472813lu))];
 
-        
-        total += arr[clamp(add(index, 2635249153387078802lu))];
 
-        
-        total += arr[clamp(add(index, 2635249153387078806lu))];
+			total += arr[clamp(add(index, 10540996613548315209lu))];
 
-        
-        total += arr[clamp(add(index, 5270498306774157604lu))];
 
-        
-        total += arr[index];
 
-        
-        total += arr[clamp(add(index, 4lu))];
+			total += arr[clamp(add(index, 10540996613548315213lu))];
 
-        
-        total += arr[clamp(add(index, 5270498306774157606lu))];
 
-        
-        total += arr[clamp(add(index, 2lu))];
+			total += arr[clamp(add(index, 15811494920322472815lu))];
 
-        
-        total += arr[clamp(add(index, 6lu))];
 
-        
-        total += arr[clamp(add(index, 7905747460161236407lu))];
+			total += arr[clamp(add(index, 10540996613548315211lu))];
 
-        
-        total += arr[clamp(add(index, 2635249153387078803lu))];
 
-        
-        total += arr[clamp(add(index, 2635249153387078807lu))];
+			total += arr[clamp(add(index, 10540996613548315215lu))];
 
-        
-        total += arr[clamp(add(index, 5270498306774157605lu))];
 
-        
-        total += arr[clamp(add(index, 1lu))];
+			total += arr[clamp(add(index, 7905747460161236406lu))];
 
-        
-        total += arr[clamp(add(index, 5lu))];
 
-        
-        total += arr[clamp(add(index, 5270498306774157607lu))];
+			total += arr[clamp(add(index, 2635249153387078802lu))];
 
-        
-        total += arr[clamp(add(index, 3lu))];
 
-        
-        total += arr[clamp(add(index, 7lu))];
+			total += arr[clamp(add(index, 2635249153387078806lu))];
 
-        
-        out[index] = total;
 
-    };
+			total += arr[clamp(add(index, 5270498306774157604lu))];
+
+
+			total += arr[index];
+
+
+			total += arr[clamp(add(index, 4lu))];
+
+
+			total += arr[clamp(add(index, 5270498306774157606lu))];
+
+
+			total += arr[clamp(add(index, 2lu))];
+
+
+			total += arr[clamp(add(index, 6lu))];
+
+
+			total += arr[clamp(add(index, 7905747460161236407lu))];
+
+
+			total += arr[clamp(add(index, 2635249153387078803lu))];
+
+
+			total += arr[clamp(add(index, 2635249153387078807lu))];
+
+
+			total += arr[clamp(add(index, 5270498306774157605lu))];
+
+
+			total += arr[clamp(add(index, 1lu))];
+
+			__builtin_prefetch(&arr[index]);
+
+
+			total += arr[clamp(add(index, 5lu))];
+
+
+			total += arr[clamp(add(index, 5270498306774157607lu))];
+
+
+			total += arr[clamp(add(index, 3lu))];
+
+
+			total += arr[clamp(add(index, 7lu))];
+
+
+			out[index] = total;
+		};
+	}
 };
