@@ -17,7 +17,11 @@ void apply(float* arr, float* out) {
 	omp_set_dynamic(0);
 	#pragma omp parallel num_threads(threads)
 	{
+#ifdef __linux__
+		const uint64_t team_id = sched_getcpu() / team_split;
+#else
 		const uint64_t team_id = omp_get_thread_num() / team_split;
+#endif
 		const uint64_t start = block_size * team_id;
 		const uint64_t end = start + block_size;
 #ifdef __linux__
