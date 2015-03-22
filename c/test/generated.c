@@ -14,6 +14,9 @@ void apply(float* arr, float* out) {
 	const uint64_t block_size = (size / num_teams);
 	const uint64_t threads = omp_get_max_threads();
 	const uint64_t team_split = threads / num_teams;
+#ifdef VERBOSE
+	printf("THREADS/TEAM: %d\n", team_split);
+#endif
 	omp_set_dynamic(0);
 	#pragma omp parallel num_threads(threads)
 	{
