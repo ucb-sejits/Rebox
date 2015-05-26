@@ -1,15 +1,18 @@
 from __future__ import division, print_function
+from ctree.cpp.nodes import CppInclude
 
 __author__ = 'nzhang-dev'
 
 import ctypes
 import sys
+import functools
+import numpy as np
 
 #TODO: remove following declaration
 
 
 from ctree.c.nodes import (ArrayDef, Array, SymbolRef, FunctionDecl, Constant, MultiNode, Assign, BitAnd, BitAndAssign,
-                           BitShR, BitNot, ArrayRef, BitOr, BitOrAssign, Add, Return, BitShL, Hex, Mul)
+                           BitShR, BitNot, ArrayRef, BitOr, BitOrAssign, Add, Return, BitShL, Hex, Mul, Attribute)
 
 import itertools
 import math
@@ -128,8 +131,7 @@ class Add2(FunctionGenerator):
         :param ndim: number of dimensions
         :param bits_per_dim: bits per dimension
         :param ctype: ctype of data
-        :param name: name of function
-        :param lut_scale: lookup table scale -> how many chunks are we looking at each time?
+                :param lut_scale: lookup table scale -> how many chunks are we looking at each time?
         :return: MultiNode with everything required, including FunctionDecl void <name> (*ctype code, ctype code2) Adds code2 into code1
         """
 
@@ -276,7 +278,6 @@ class Encode(FunctionGenerator):
         :param ndim: number of dimensions
         :param bits_per_dim: bits per dimension
         :param ctype: ctype of data
-        :param name: name of function
         :return: MultiNode with everything required, including FunctionDecl void <name> (*ctype indices) -> Z order index
         """
         size = ctypes.sizeof(ctype) * 8  # bit size of type
@@ -296,6 +297,102 @@ class Encode(FunctionGenerator):
         decl.defn = [Return(retval)]
         return FunctionGenerator.GeneratedResult(decl)
 
+class SLUTEncode(FunctionGenerator):
+    """
+    A SLUT system encodes sections of the index as the corresponding Z-Order encoding.
+    """
+    name = "encode"
+
+    @staticmethod
+    def entries(ndim, ctype, pages):
+        """
+        :param ndim: number of dimensions
+        :param ctype: type of entry 64 bit unsigned
+        :return: number of entries per LUT
+        """
+        PAGE_SIZE = 4096
+        type_size = ctypes.sizeof(ctype)
+        return int(PAGE_SIZE * pages // ndim // type_size)
+
+    def generate(self, ndim, bits_per_dim, ctype, lut_size=0, num_pages=0):
+        """
+        :param ndim: number of dimensions
+        :param bits_per_dim: bits per dimension
+        :param ctype: ctype of data
+        :param lut_size: size of each LUT
+        :param num_pages: number of pages to use (if LUT_SIZE is 0, tries to fill certain number of pages)
+        :return: MultiNode with everything required, including FunctionDecl uint64_t <name> (*ctype indices) -> Z order index
+        """
+        if lut_size <= 0:
+            if num_pages:
+                lut_size = self.entries(ndim, ctype, num_pages)
+            else:
+                lut_size = 2**bits_per_dim
+        lut_size = min(lut_size, 2**bits_per_dim)
+
+        def encode(num, ndim):
+            binary = bin(num)[2:] # binary representation of number
+            split_binary = list(binary)
+            interleaved = ('0'*(ndim-1)).join(split_binary)
+            return int(interleaved, 2)
+
+        def generate_LUT():
+            return [encode(i, ndim) for i in range(lut_size)]
+
+        #we want all LUTs to be contiguous in memory
+        #this section allocates one huge LUT, with sections corresponding to each LUT. We'll then use some math
+        #to separate it into individual LUTs
+        base = generate_LUT()
+        complete_LUT = [
+            i << shift for shift in range(ndim) for i in base
+        ]
+        sym = SymbolRef("encode_LUT", sym_type=ctype(), _const=True, _static=True)
+        converted = [Hex(i) for i in complete_LUT]
+        LUT_def = ArrayDef(sym, lut_size * ndim, Array(body=converted))
+        ("aligned(4096)",)
+
+        start_indices = [
+            Assign(
+                SymbolRef("LUT_dim_{}".format(i), sym_type=ctypes.POINTER(ctype)(), _const=True, _static=True),
+                Add(SymbolRef("encode_LUT"), Constant(i * lut_size))
+            ) for i in range(ndim)
+        ]
+        params = [SymbolRef("dim_{}".format(i)) for i in range(ndim)]
+        tables = [SymbolRef("LUT_dim_{}".format(i)) for i in range(ndim)]
+        if lut_size >= 2**bits_per_dim:
+            # single pass required, since LUT is larger than each dim
+            result = functools.reduce(
+                BitOr, [ArrayRef(table, param) for table, param in zip(tables, params)]
+            )
+        else:
+            bits_at_a_time = int(np.log2(lut_size))
+            mask = Hex(lut_size - 1)
+            chunks = []
+            num_shifts = int(math.ceil(bits_per_dim / bits_at_a_time))
+            for param, table in zip(params, tables):
+                for shift in range(num_shifts):
+                    chunks.append(
+                        ArrayRef(table, BitAnd(param >> bits_at_a_time, mask))
+                    )
+            result = functools.reduce(
+                BitOr, chunks
+            )
+
+        function = FunctionDecl(
+            ctype(),
+            self.name,
+            params=[SymbolRef("dim_{}".format(i), sym_type=ctype()) for i in range(ndim)],
+            defn=[
+                Return(result)
+            ],
+            attributes=('pure',)
+        )
+        return FunctionGenerator.GeneratedResult(
+            func=function,
+            auxiliary=[LUT_def]+start_indices,
+            includes=(CppInclude("stdint.h"),)
+        )
+
 
 
 class Add3(FunctionGenerator):
@@ -306,8 +403,7 @@ class Add3(FunctionGenerator):
         :param ndim: number of dimensions
         :param bits_per_dim: bits per dimension
         :param ctype: ctype of data
-        :param name: name of function
-        :return: MultiNode with everything required, including FunctionDecl void <name> (*ctype code, ctype code2) Adds code2 into code1
+                :return: MultiNode with everything required, including FunctionDecl void <name> (*ctype code, ctype code2) Adds code2 into code1
         """
 
         master = MultiNode()
@@ -390,8 +486,7 @@ class Add4(FunctionGenerator):
         :param ndim: number of dimensions
         :param bits_per_dim: bits per dimension
         :param ctype: ctype of data
-        :param name: name of function
-        :return: MultiNode with everything required, including FunctionDecl void <name> (*ctype code, ctype code2) Adds code2 into code1
+                :return: MultiNode with everything required, including FunctionDecl void <name> (*ctype code, ctype code2) Adds code2 into code1
         """
 
         master = MultiNode()
@@ -438,8 +533,7 @@ class MulClamp(FunctionGenerator):
         :param ndim: number of dimensions
         :param bits_per_dim: bits per dimension
         :param ctype: ctype of data
-        :param name: name of function
-        :return: MultiNode with everything required, including FunctionDecl void <name> (*ctype code)
+                :return: MultiNode with everything required, including FunctionDecl void <name> (*ctype code)
         """
         decl = FunctionDecl(name=self.name, params=[SymbolRef('code', sym_type=ctype())], return_type=ctype(),
                             attributes=("const",))
@@ -515,8 +609,7 @@ class PartialMulClamp(FunctionGenerator):
         :param ndim: number of dimensions
         :param bits_per_dim: bits per dimension
         :param ctype: ctype of data
-        :param name: name of function
-        :return: MultiNode with everything required, including FunctionDecl void <name> (*ctype code)
+                :return: MultiNode with everything required, including FunctionDecl void <name> (*ctype code)
         """
         decl = FunctionDecl(name=self.name, params=[SymbolRef('code', sym_type=ctype())], return_type=ctype(),
                             attributes=("const",))
@@ -595,10 +688,9 @@ if __name__ == "__main__":
     if len(sys.argv) > 2:
         bits_per_dim = int(sys.argv[2])
     ctype = ctypes.c_uint64
-    add_choice, clamp_choice = sys.argv[3:5]
-    a = [Add2, Add3, Add4][int(add_choice)]
-    c = [LUTClamp, MulClamp, PartialMulClamp][int(clamp_choice)]
+    a = Add4
+    c = PartialMulClamp
 
-    generator = Ordering([a(), c(), Encode()])
+    generator = Ordering([a(), c(), SLUTEncode()])
 
     print(generator.generate(ndim, bits_per_dim, ctype))

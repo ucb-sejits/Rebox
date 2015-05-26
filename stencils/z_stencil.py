@@ -10,7 +10,7 @@ import ctypes
 import math
 
 from ctree.jit import LazySpecializedFunction, ConcreteSpecializedFunction
-from ctree.c.nodes import CFile, For, FunctionCall, Assign, SymbolRef, String, Sub, Return, Block
+from ctree.c.nodes import CFile, For, FunctionDecl, Pragma, Assign, SymbolRef, FunctionCall, String, AddAssign
 from ctree.nodes import Project
 from ctree.cpp.nodes import CppInclude
 from ctree.transformations import PyBasicConversions
@@ -129,8 +129,36 @@ class ZOmpStencil(ZStencil):
         files = super(ZOmpStencil, self).transform(tree, program_config)
         main_file = files[1]
         main_file.body.insert(0, CppInclude("omp.h"))
-        loop = main_file.find(For)
-        loop.pragma = "omp parallel for"
+        decl = main_file.find(FunctionDecl)
+        prag = Pragma("omp parallel", braces=True)
+        prag.body = [
+            Assign(SymbolRef("threadId", sym_type=ctypes.c_uint()), FunctionCall(SymbolRef("omp_get_thread_num"), [])),
+            FunctionCall(SymbolRef("printf"), [String("Thread: %d\n"), SymbolRef("threadId")]),
+            Pragma("omp for", decl.defn, braces=False)
+        ]
+        decl.defn = [prag]
+        for f in files:
+            f.config_target = 'omp'
+        # print(main_file)
+        return files
+
+class BlockedZOmpStencil(ZStencil):
+    def transform(self, tree, program_config):
+        files = super(ZOmpStencil, self).transform(tree, program_config)
+        main_file = files[1]
+        main_file.body.insert(0, CppInclude("omp.h"))
+        decl = main_file.find(FunctionDecl)
+        loop = decl.find(For)
+        loop.init.right = SymbolRef("threadId")
+        var = SymbolRef(loop.init.left.name)
+        loop.incr = AddAssign(var, SymbolRef("numThreads"))
+        prag = Pragma("omp parallel", braces=True)
+        prag.body = [
+            Assign(SymbolRef("threadId", sym_type=ctypes.c_uint()), FunctionCall(SymbolRef("omp_get_thread_num"), [])),
+            Assign(SymbolRef("numThreads", sym_type=ctypes.c_uint()), FunctionCall(SymbolRef("omp_get_num_threads"), [])),
+            FunctionCall(SymbolRef("printf"), [String(r"Thread: %d\n"), SymbolRef("threadId")]),
+        ] + decl.defn
+        decl.defn = [prag]
         for f in files:
             f.config_target = 'omp'
         # print(main_file)

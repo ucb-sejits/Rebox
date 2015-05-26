@@ -97,7 +97,7 @@ class EncodeConvertTransformer(ast.NodeTransformer):
             node.right = self.replacement_func(node.right)
         return node
 
-class DeltaTransformer(ast.NodeTransformer):
+class ZDeltaTransformer(ast.NodeTransformer):
     def __init__(self, namespace=None, ndim=3):
         self.namespace = namespace if namespace is not None else {}
         self.ndim = ndim
