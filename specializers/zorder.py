@@ -5,7 +5,6 @@ __author__ = 'nzhang-dev'
 import math
 import numpy as np
 import ctypes
-from itertools import product
 from collections import namedtuple
 import ast
 
@@ -15,13 +14,12 @@ from ctree.c.nodes import CFile, SymbolRef
 from ctree.nodes import Project
 from transformers import IndexTransformer
 from ctree.transformations import PyBasicConversions
-from ctree.transforms.declaration_filler import DeclarationFiller
 
 from order import Ordering
-from z_generator import Encode
+from specializers.z.z_generator import Encode
 
 
-from specializers.util import encode, indices
+from specializers.generic.util import encode, indices
 
 class ZFunction(ConcreteSpecializedFunction):
 

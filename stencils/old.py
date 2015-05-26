@@ -1,27 +1,25 @@
 from __future__ import print_function
+import ast
+from specializers import order
+
+from specializers.generic import CleanArgsTransformer, ReturnRemover, AddSimplifier, MulSimplifier, ClampSimplifier
+from specializers.z import add, clamp, encode
+from specializers.z.transformers import IndexTransformer, DeltaTransformer
+
 
 __author__ = 'nzhang-dev'
 
-
-import itertools
 import numpy as np
 from collections import namedtuple
 import ctypes
 import math
 
 from ctree.jit import LazySpecializedFunction, ConcreteSpecializedFunction
-from ctree.c.nodes import CFile, For, FunctionDecl, Pragma, Assign, SymbolRef, FunctionCall, String, AddAssign
+from ctree.c.nodes import CFile, FunctionDecl, Pragma, Assign, SymbolRef, FunctionCall, String
 from ctree.nodes import Project
 from ctree.cpp.nodes import CppInclude
 from ctree.transformations import PyBasicConversions
-from ctree.tune import BruteForceTuningDriver, EnumParameter, MinimizeTime
-
-from specializers.transformers import (DeltaTransformer, CleanArgsTransformer, ZIndexTransformer, ReturnRemover,
-                                       AddSimplifier, ClampSimplifier, MulSimplifier)
-from specializers import z_generator
-from specializers.util import indices, add, clamp
-
-from specializers.zorder import EncodeConversion, DecodeConversion
+from specializers.generic.util import indices
 
 import time
 
@@ -43,25 +41,21 @@ class ZStencilFunction(ConcreteSpecializedFunction):
         print("Out allocation", t2-t, "Flatten", t3-t2, "Calculation", t4-t3)
         return out
 
-class ZStencil(LazySpecializedFunction):
+class Stencil(LazySpecializedFunction):
     _weights = np.ones((1,1,1))  # identity stencil
     _out = None
 
-    Subconfig = namedtuple("Subconfig", ["dtype", "ndim", "shape"])
+    boundary = clamp.Clamp
 
-    def get_tuning_driver(self):
-        add_param = EnumParameter("add", [z_generator.Add4])
-        clamp_param = EnumParameter("clamp", [z_generator.PartialMulClamp])
-        driver = BruteForceTuningDriver(params=[add_param, clamp_param], objective=MinimizeTime())
-        return driver
+    Subconfig = namedtuple("Subconfig", ["dtype", "ndim", "shape"])
 
     def args_to_subconfig(self, args):
         A = args[0]
         return self.Subconfig(A.dtype, A.ndim, A.shape)
 
     def transform(self, tree, program_config):
-        aux_functions = [init() for init in program_config.tuner_subconfig.values()]
-        auxiliary_codegen = z_generator.Ordering(aux_functions)
+        aux_functions = [add.FastBitMagicAdd(), clamp.PartialMulClamp()]
+        auxiliary_codegen = order.Ordering(aux_functions)
         subconfig = program_config.args_subconfig
         max_dim = max(subconfig.shape)
         bits_per_dim = int(math.ceil(math.log(max_dim, 2)))
@@ -74,7 +68,7 @@ class ZStencil(LazySpecializedFunction):
         tree.body.pop(0)  # removes initialization of out
         c_tree = PyBasicConversions().visit(tree)
         c_tree = CleanArgsTransformer().visit(c_tree)
-        c_tree = ZIndexTransformer({"arr": arr}, ctype=ctypes.c_uint64).visit(c_tree)
+        c_tree = IndexTransformer({"arr": arr}, ctype=ctypes.c_uint64).visit(c_tree)
         c_tree = DeltaTransformer({"self": self}, ndim=len(subconfig.shape)).visit(c_tree)
         c_tree = ReturnRemover().visit(c_tree)
         c_tree = AddSimplifier().visit(c_tree)
@@ -124,16 +118,16 @@ class ZStencil(LazySpecializedFunction):
             out[index] = total
         return out
 
-class ZOmpStencil(ZStencil):
+class OmpStencil(Stencil):
     def transform(self, tree, program_config):
-        files = super(ZOmpStencil, self).transform(tree, program_config)
+        files = super(OmpStencil, self).transform(tree, program_config)
         main_file = files[1]
         main_file.body.insert(0, CppInclude("omp.h"))
         decl = main_file.find(FunctionDecl)
         prag = Pragma("omp parallel", braces=True)
         prag.body = [
             Assign(SymbolRef("threadId", sym_type=ctypes.c_uint()), FunctionCall(SymbolRef("omp_get_thread_num"), [])),
-            FunctionCall(SymbolRef("printf"), [String("Thread: %d\n"), SymbolRef("threadId")]),
+            FunctionCall(SymbolRef("printf"), [String("Thread: %d\\n"), SymbolRef("threadId")]),
             Pragma("omp for", decl.defn, braces=False)
         ]
         decl.defn = [prag]
@@ -142,38 +136,8 @@ class ZOmpStencil(ZStencil):
         # print(main_file)
         return files
 
-class BlockedZOmpStencil(ZStencil):
-    def transform(self, tree, program_config):
-        files = super(ZOmpStencil, self).transform(tree, program_config)
-        main_file = files[1]
-        main_file.body.insert(0, CppInclude("omp.h"))
-        decl = main_file.find(FunctionDecl)
-        loop = decl.find(For)
-        loop.init.right = SymbolRef("threadId")
-        var = SymbolRef(loop.init.left.name)
-        loop.incr = AddAssign(var, SymbolRef("numThreads"))
-        prag = Pragma("omp parallel", braces=True)
-        prag.body = [
-            Assign(SymbolRef("threadId", sym_type=ctypes.c_uint()), FunctionCall(SymbolRef("omp_get_thread_num"), [])),
-            Assign(SymbolRef("numThreads", sym_type=ctypes.c_uint()), FunctionCall(SymbolRef("omp_get_num_threads"), [])),
-            FunctionCall(SymbolRef("printf"), [String(r"Thread: %d\n"), SymbolRef("threadId")]),
-        ] + decl.defn
-        decl.defn = [prag]
-        for f in files:
-            f.config_target = 'omp'
-        # print(main_file)
-        return files
 
-class BoxedZOmpStencil(ZStencil):
-    def transform(self, tree, program_config):
-        files = super(ZOmpStencil, self).transform(tree, program_config)
-        main_file = files[1]
-        main_file.body.insert(0, CppInclude("omp.h"))
-        loop = main_file.find(For)
-        loop.pragma = "omp parallel for"
-        return files
-
-class Laplacian3DStencil(ZStencil):
+class Laplacian3DStencil(Stencil):
     _weights = np.array([
         [
             [0, 0, 0],
@@ -192,23 +156,23 @@ class Laplacian3DStencil(ZStencil):
         ]
     ])
 
-class Laplacian2DStencil(ZStencil):
+class Laplacian2DStencil(Stencil):
     _weights = np.array([
         [0, -1, 0],
         [-1, 4, -1],
         [0, -1, 0]
     ])
 
-class Sum3DStencil(ZStencil):
+class Sum3DStencil(Stencil):
     _weights = np.ones([3,3,3], dtype=np.int)
 
-class Laplacian2DOmpStencil(Laplacian2DStencil, ZOmpStencil):
+class Laplacian2DOmpStencil(Laplacian2DStencil, OmpStencil):
     pass
 
-class Laplacian3DOmpStencil(Laplacian3DStencil, ZOmpStencil):
+class Laplacian3DOmpStencil(Laplacian3DStencil, OmpStencil):
     pass
 
-class Sum3DOmpStencil(Sum3DStencil, ZOmpStencil):
+class Sum3DOmpStencil(Sum3DStencil, OmpStencil):
     pass
 
 if __name__ == "__main__":
@@ -216,15 +180,10 @@ if __name__ == "__main__":
     shape = (1024,) * ndim
     arr = np.arange(shape[0]**ndim, dtype=np.float).reshape(shape)
     sum_stencil = Sum3DOmpStencil()
-    encoder = EncodeConversion()
-    decoder = DecodeConversion()
     #encoded = encoder(arr).reshape(shape)
     out = np.ndarray(shape, arr.dtype)
-    for i in range(1):
-        print(i)
-        t = time.time()
-        sum_stencil(arr, out)
-        end = time.time()
-        sum_stencil.report(time=end - t)
-        print(end - t)
-    print(sum_stencil._tuner._best_cfg)
+    t = time.time()
+    sum_stencil(arr, out)
+    end = time.time()
+    sum_stencil.report(time=end - t)
+    print(end - t)

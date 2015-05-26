@@ -15,7 +15,7 @@ __attribute__ ((const)) static inline size_t clamp(size_t code) {
     code |= 0x9249249u * (mask & 0x7u);
     return code & 0x3fffffffu;
 };
-__attribute__ ((pure)) static inline size_t encode(size_t dim_0, size_t dim_1, size_t dim_2) {
+__attribute__ ((pure)) size_t encode(size_t dim_0, size_t dim_1, size_t dim_2) {
     return LUT_dim_0[dim_0] | LUT_dim_1[dim_1] | LUT_dim_2[dim_2];
 };
 
