@@ -9,7 +9,7 @@ import itertools
 import math
 from ctree.cpp.nodes import CppInclude
 from specializers.generic.util import encode
-from specializers.order import FunctionGenerator
+from specializers.order import FunctionGenerator, Ordering
 
 import numpy as np
 
@@ -149,3 +149,7 @@ class SLUTEncode(FunctionGenerator):
             auxiliary=[LUT_def]+start_indices,
             includes=(CppInclude("stdint.h"),)
         )
+
+if __name__ == '__main__':
+    ordering = Ordering([SLUTEncode()])
+    print(ordering.generate(3, 8, ctypes.c_uint64))

@@ -12,8 +12,7 @@ int main() {
 	uint64_t size = dim_size*dim_size*dim_size;
 	double start = omp_get_wtime();
 	size_t result;
-	for (int iter = 0; iter < 10; iter++) {
-	#pragma omp parallel for collapse(3) num_threads(1)
+	for (int iter = 0; iter < 1; iter++) {
 	for (uint64_t x = 0; x < dim_size; x++) {
 		for (uint64_t y = 0; y < dim_size; y++) {
 			for (uint64_t z = 0; z < dim_size; z++) {
@@ -29,5 +28,5 @@ int main() {
 #else
 	printf("STD\n");
 #endif
-	printf("Elapsed Time: %f\n", end - start);
+	printf("Elapsed Time: %f ms\n", (end - start) * 1000);
 }
