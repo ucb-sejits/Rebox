@@ -8,6 +8,7 @@
 #define SIZE 1024
 #endif
 
+#pragma optimize( "", off )
 int main() {
 	uint64_t size = SIZE*SIZE*SIZE;
 	printf("SIZE: %d\n", SIZE);
