@@ -143,7 +143,7 @@ class MulClamp(Clamp):
         code = SymbolRef('code')
         mask = SymbolRef("mask")
         size = ctypes.sizeof(ctype) * 8  # 8 bits/byte
-        underflow_start = Hex(size - size%ndim - ndim)
+        underflow_start = Hex(size - size % ndim - ndim)
         overflow_start = Hex(ndim * bits_per_dim)
         overflow_end = Hex(underflow_start.value - 1)
         overflow_bits = overflow_end.value - overflow_start.value + 1

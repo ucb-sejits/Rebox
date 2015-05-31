@@ -39,6 +39,8 @@ class Ordering(object):
         flattened_includes = self.default_includes[:]
         for include in includes:
             flattened_includes.extend(include)
+
+        flattened_includes = list(set(flattened_includes))
         flattened_auxes = []
         for aux in auxes:
             flattened_auxes.extend(aux)

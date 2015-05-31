@@ -1,13 +1,13 @@
 #include <stdint.h>
 #include <stdio.h>
-#include <omp.h>
+#include <time.h>
 #include "zdecode.c"
 #include "zindex.c"
 
 int main() {
-	uint64_t dim_size = 1024;
+	uint64_t dim_size = 256;
 	uint64_t size = dim_size*dim_size*dim_size;
-	double start = omp_get_wtime();
+	clock_t start = clock();
 	size_t result;
 	size_t a, b, c;
 	for (uint64_t x = 0; x < dim_size; x++) {
@@ -21,7 +21,7 @@ int main() {
 				}
 			}
 		}
-	double end = omp_get_wtime();
+	clock_t end = clock();
 	//printf("%d\r", result>>63);
-	printf("Elapsed Time: %f ms\n", (end - start) * 1000);
+	printf("Elapsed Time: %f ms\n", ((float) (end - start)) / CLOCKS_PER_SEC * 1000);
 }

@@ -1,5 +1,5 @@
 import ast
-from ctree.c.nodes import Number, SymbolRef, Op, MultiNode
+from ctree.c.nodes import SymbolRef, Op, MultiNode, Number
 
 __author__ = 'nzhang-dev'
 

@@ -36,10 +36,10 @@ class Stencil(LazySpecializedFunction):
 
     Subconfig = namedtuple("Subconfig", ["dtype", "ndim", "shape"])
 
-    def __init__(self, encode, delta_transformer, boundary_handler):
+    def __init__(self, in_code, out_code, boundary_handler):
         super(self, Stencil).__init__()
-        self.encode = encode
-        self.delta_transformer = delta_transformer
+        self.in_code = in_code
+        self.out_code = out_code
         self.boundary_handler = boundary_handler
 
     def args_to_subconfig(self, args):
