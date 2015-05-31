@@ -176,8 +176,8 @@ class MagicBitsDecode(Decode):
 
 
 if __name__ == '__main__':
-    #decode = LUTShiftDecode()
-    decode = MagicBitsDecode()
+    decode = LUTShiftDecode()
+    #decode = MagicBitsDecode()
     ordering = Ordering([decode])
     print(ordering.generate(3, int(sys.argv[1]), ctypes.c_uint64))
 
