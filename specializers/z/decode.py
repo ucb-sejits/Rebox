@@ -6,6 +6,9 @@ from ctree.c.nodes import FunctionDecl, SymbolRef, Deref, Assign, BitShR, Hex, R
     ArrayDef, Array, AugAssign, BitAndAssign, BitXor, MultiNode, Number
 from ctree.cpp.nodes import CppInclude
 import math
+import itertools
+import operator
+import sys
 from specializers.order import FunctionGenerator, Ordering
 
 __author__ = 'nzhang-dev'
@@ -30,16 +33,33 @@ class Decode(FunctionGenerator):
 class LUTShiftDecode(Decode):
     def generate(self, ndim, bits_per_dim, ctype):
 
-        div, mod = divmod(bits_per_dim, ndim)  # rounded to ndim
-        chunk_size = div * ndim + (ndim if mod else 0)
+        div, mod = divmod(bits_per_dim * ndim, ndim)  # rounded to ndim
+        chunk_size = bits_per_dim
+        chunk_sizes = [int(bits_per_dim // ndim)] * ndim
+        for i in range(bits_per_dim % ndim):
+            chunk_sizes[i] += 1
+        chunk_sizes = [i * ndim for i in chunk_sizes]
+        mask_copies = [int(i / ndim) for i in chunk_sizes]
 
-        def LUT_entry(num):
-            binary = bin(num)[2:].zfill(chunk_size)
-            chunks = [binary[i::ndim] for i in range(ndim)]
-            return int(''.join(chunks), 2)
-
-        lut = [Hex(LUT_entry(i)) for i in range(2**chunk_size)]
-        LUT_def = ArrayDef(SymbolRef("decode_lut",sym_type=ctype(), _const=True), size=len(lut), body=Array(body=lut))
+        # def LUT_entry(num):
+        #     return num
+        #     binary = bin(num)[2:].zfill(chunk_size)
+        #     chunks = [binary[i::ndim] for i in range(ndim)]
+        #     return int(''.join(chunks), 2)
+        #
+        # lut = [Hex(LUT_entry(i)) for i in range(2**chunk_size)]
+        def chunkify(iterable, sizes):
+            i = iter(iterable)
+            for size in sizes:
+                yield [next(i) for _ in range(size)]
+        lut = [0]*(2**bits_per_dim)
+        for index in itertools.product(("0", "1"), repeat=bits_per_dim):
+            value = int(''.join(index), 2)
+            chunkified = list(chunkify(index, reversed(mask_copies)))
+            numified = [int(('0'*(ndim - 1)).join(chunk), 2) for chunk in chunkified][::-1]
+            entry_index = functools.reduce(operator.or_, (num << shift for shift, num in enumerate(numified)))
+            lut[entry_index] = Hex(value)
+        LUT_def = ArrayDef(SymbolRef("decode_lut", sym_type=ctype(), _const=True), size=len(lut), body=Array(body=lut))
 
         function = FunctionDecl(
             name=self.name,
@@ -53,10 +73,22 @@ class LUTShiftDecode(Decode):
 
 
         code = SymbolRef('code')
-        mask_copies = int(math.ceil(chunk_size / ndim))
-        mask = int(('1'.zfill(ndim))*mask_copies, 2)
+
         function.defn = []
         for dim in range(ndim):
+            #mask_copies = int(math.ceil(chunk_sizes[dim] / ndim))
+
+            to_reduce = []
+            for chunk_num, chunk_size in enumerate(chunk_sizes):
+                mask = int(('1'.zfill(ndim))*mask_copies[chunk_num], 2)
+                shift = sum(chunk_sizes[:chunk_num], 0) - chunk_num + dim
+                to_reduce.append(
+                    BitAnd(
+                        BitShR(code, Number(shift)),
+                        Hex(mask << chunk_num)
+                    )
+                )
+
             function.defn.append(
                 Assign(
                     Deref(SymbolRef("dim_{}".format(dim))),
@@ -64,11 +96,7 @@ class LUTShiftDecode(Decode):
                         SymbolRef("decode_lut"),
                         functools.reduce(
                             BitOr,
-                            [
-                                BitAnd(
-                                    BitShR(code, Constant(dim + chunk_num * (chunk_size - 1))), Hex(mask << chunk_num)
-                                ) for chunk_num in range(ndim)
-                            ]
+                            to_reduce
                         )
                     )
                 )
@@ -129,7 +157,6 @@ class MagicBitsDecode(Decode):
                 Assign(tmp, BitAnd(BitShR(code, Constant(dim)), dim_mask))
             )
             while width <= bits_per_dim:
-                print(spacing, width)
                 block.body.append(
                     shift_row(tmp, tmp, spacing, width)
                 )
@@ -149,8 +176,8 @@ class MagicBitsDecode(Decode):
 
 
 if __name__ == '__main__':
+    #decode = LUTShiftDecode()
     decode = MagicBitsDecode()
     ordering = Ordering([decode])
-    print(ordering.generate(3, 8, ctypes.c_uint64))
-    #print(LSD(2**30 - 1, 3))
+    print(ordering.generate(3, int(sys.argv[1]), ctypes.c_uint64))
 

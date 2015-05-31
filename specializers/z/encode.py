@@ -8,6 +8,7 @@ from ctree.c.nodes import FunctionDecl, SymbolRef, ArrayRef, Constant, Hex, BitO
 import itertools
 import math
 from ctree.cpp.nodes import CppInclude
+import sys
 from specializers.generic.util import encode
 from specializers.order import FunctionGenerator, Ordering
 
@@ -152,4 +153,4 @@ class SLUTEncode(FunctionGenerator):
 
 if __name__ == '__main__':
     ordering = Ordering([SLUTEncode()])
-    print(ordering.generate(3, 8, ctypes.c_uint64))
+    print(ordering.generate(3, int(sys.argv[1]), ctypes.c_uint64))
