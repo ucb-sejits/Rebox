@@ -2,7 +2,7 @@ __author__ = 'nzhang-dev'
 from distutils.core import setup
 
 setup(
-    name='rebox',
+    name='Rebox',
     version='0.1.0',
     url='github.com/pyprogrammer/Rebox',
     license='B',
@@ -11,8 +11,11 @@ setup(
     description='Dynamic stencil reindexing in Python',
 
     packages=[
-        'specializers',
-        'stencils'
+        'Rebox.specializers.rm',
+        'Rebox.specializers.z',
+        'Rebox.specializers.generic',
+        'Rebox.stencils',
+        'Rebox',
     ],
 
     install_requires=[

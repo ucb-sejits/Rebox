@@ -8,3 +8,35 @@ inline void decode(size_t code, size_t* dim_0, size_t* dim_1, size_t* dim_2) {
     * dim_2 = decode_lut[(code >> 2u & 0x249u | code >> 13u & 0x92u | code >> 21u & 0x124u)];
 };
 
+
+#include <stdlib.h>
+#include <stdint.h>
+inline void decode(const size_t code, size_t* dim_0, size_t* dim_1, size_t* dim_2) {
+
+    size_t tmp_0;
+    tmp_0 = code >> 0 & 0x9249249u;
+    tmp_0 = (tmp_0 ^ tmp_0 >> 2) & 0xc30c30c30c3lu;
+    tmp_0 = (tmp_0 ^ tmp_0 >> 4) & 0xf00f00f00flu;
+    tmp_0 = (tmp_0 ^ tmp_0 >> 8) & 0xff0000fflu;
+    tmp_0 = (tmp_0 ^ tmp_0 >> 16) & 0xfffflu;
+    * dim_0 = tmp_0;
+
+
+    size_t tmp_1;
+    tmp_1 = code >> 1 & 0x9249249u;
+    tmp_1 = (tmp_1 ^ tmp_1 >> 2) & 0xc30c30c30c3lu;
+    tmp_1 = (tmp_1 ^ tmp_1 >> 4) & 0xf00f00f00flu;
+    tmp_1 = (tmp_1 ^ tmp_1 >> 8) & 0xff0000fflu;
+    tmp_1 = (tmp_1 ^ tmp_1 >> 16) & 0xfffflu;
+    * dim_1 = tmp_1;
+
+
+    size_t tmp_2;
+    tmp_2 = code >> 2 & 0x9249249u;
+    tmp_2 = (tmp_2 ^ tmp_2 >> 2) & 0xc30c30c30c3lu;
+    tmp_2 = (tmp_2 ^ tmp_2 >> 4) & 0xf00f00f00flu;
+    tmp_2 = (tmp_2 ^ tmp_2 >> 8) & 0xff0000fflu;
+    tmp_2 = (tmp_2 ^ tmp_2 >> 16) & 0xfffflu;
+    * dim_2 = tmp_2;
+
+};
