@@ -11,11 +11,11 @@ setup(
     description='Dynamic stencil reindexing in Python',
 
     packages=[
-        'Rebox.specializers.rm',
-        'Rebox.specializers.z',
-        'Rebox.specializers.generic',
-        'Rebox.stencils',
-        'Rebox',
+        'rebox.specializers.rm',
+        'rebox.specializers.z',
+        'rebox.specializers.generic',
+        'rebox.stencils',
+        'rebox',
     ],
 
     install_requires=[
