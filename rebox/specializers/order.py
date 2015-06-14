@@ -44,4 +44,6 @@ class Ordering(object):
         flattened_auxes = []
         for aux in auxes:
             flattened_auxes.extend(aux)
+        for decl in decls:
+            decl.name = self.prefix + decl.name
         return MultiNode(body = flattened_includes + flattened_auxes + list(decls))
