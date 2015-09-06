@@ -29,9 +29,10 @@ class FunctionGenerator(object):
 class Ordering(object):
     default_includes = [CppInclude("stdint.h"), CppInclude("stdlib.h")]
 
-    def __init__(self, generators=None, prefix=''):
+    def __init__(self, generators=None, prefix='', suffix=''):
         self.generators = generators or []
         self.prefix = prefix
+        self.suffix = suffix
 
     def generate(self, *params):
         generated = [generator.generate(*(params)) for generator in self.generators]
@@ -45,5 +46,5 @@ class Ordering(object):
         for aux in auxes:
             flattened_auxes.extend(aux)
         for decl in decls:
-            decl.name = self.prefix + decl.name
+            decl.name = self.prefix + decl.name + self.suffix
         return MultiNode(body = flattened_includes + flattened_auxes + list(decls))
